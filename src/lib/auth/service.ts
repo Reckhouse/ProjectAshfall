@@ -10,6 +10,15 @@ export async function createUserAccount(
   db: AppDb,
   input: { email: string; password: string },
 ): Promise<{ id: string; email: string }> {
+  const [existing] = await db
+    .select({ id: authUsers.id })
+    .from(authUsers)
+    .where(eq(authUsers.email, input.email))
+    .limit(1);
+  if (existing) {
+    throw new GameError("ACCOUNT_CREATE_FAILED", "Unable to create that account.", 400);
+  }
+
   const passwordHash = await hashPassword(input.password);
   try {
     const [user] = await db

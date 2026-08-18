@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
+import { createUserAccount } from "@/lib/auth/service";
 import { registerSchema } from "@/lib/validation/auth";
 import { getServerEnv } from "@/lib/env";
+import { isUniqueViolation } from "@/game/services/spawn";
+import { GameError } from "@/game/domain/errors";
+import { setupIsolatedGameDb } from "./helpers/db";
 
 describe("auth helpers", () => {
   it("hashes passwords and verifies them without storing plaintext", async () => {
@@ -37,5 +41,25 @@ describe("auth helpers", () => {
     });
     expect(env.isNeon).toBe(true);
     expect(env.authSecret.length).toBeGreaterThan(0);
+  });
+
+  it("detects unique violations wrapped by Drizzle/Neon cause chains", () => {
+    const nested = { cause: { code: "23505", message: "duplicate key value violates unique constraint" } };
+    expect(isUniqueViolation(nested)).toBe(true);
+    expect(isUniqueViolation(new Error("nope"))).toBe(false);
+  });
+
+  it("rejects a second account with the same email without surfacing an internal error", async () => {
+    const { db, client } = await setupIsolatedGameDb();
+    try {
+      await createUserAccount(db, { email: "same@ashfall.test", password: "password1" });
+      await expect(
+        createUserAccount(db, { email: "same@ashfall.test", password: "password1" }),
+      ).rejects.toMatchObject({
+        code: "ACCOUNT_CREATE_FAILED",
+      } satisfies Partial<GameError>);
+    } finally {
+      await client.close();
+    }
   });
 });

@@ -43,12 +43,27 @@ function pickSpawnRegion(regions: SpawnRegion[], rng: Rng): SpawnRegion {
 }
 
 export function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) {
-    return false;
-  }
-  const code = "code" in error ? String((error as { code?: unknown }).code) : "";
-  const message = "message" in error ? String((error as { message?: unknown }).message) : "";
-  return code === "23505" || /duplicate key|unique constraint/i.test(message);
+  const seen = new Set<unknown>();
+  const visit = (value: unknown): boolean => {
+    if (value == null || seen.has(value)) {
+      return false;
+    }
+    if (typeof value === "string") {
+      return /duplicate key|unique constraint/i.test(value);
+    }
+    if (typeof value !== "object") {
+      return false;
+    }
+    seen.add(value);
+    const record = value as { code?: unknown; message?: unknown; cause?: unknown };
+    const code = record.code == null ? "" : String(record.code);
+    const message = record.message == null ? "" : String(record.message);
+    if (code === "23505" || /duplicate key|unique constraint/i.test(message)) {
+      return true;
+    }
+    return visit(record.cause);
+  };
+  return visit(error);
 }
 
 export async function allocateBaseSpawn(input: AllocateBaseSpawnInput): Promise<AllocateBaseSpawnResult> {
