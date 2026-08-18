@@ -67,8 +67,8 @@ describe("caves and tools", () => {
   });
 
   it("weights tool affinity toward the weaker equipped slot", () => {
-    expect(pickToolAffinity({ energyTier: 3, metalTier: 1, roll: 64 })).toBe("METAL");
-    expect(pickToolAffinity({ energyTier: 3, metalTier: 1, roll: 65 })).toBe("ENERGY");
+    expect(pickToolAffinity({ energyTier: 3, metalTier: 1, roll: 34 })).toBe("ENERGY");
+    expect(pickToolAffinity({ energyTier: 3, metalTier: 1, roll: 35 })).toBe("METAL");
     expect(pickToolAffinity({ energyTier: 1, metalTier: 1, roll: 49 })).toBe("ENERGY");
     expect(pickToolAffinity({ energyTier: 1, metalTier: 1, roll: 50 })).toBe("METAL");
   });

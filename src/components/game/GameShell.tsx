@@ -77,7 +77,10 @@ export function GameShell({
   const pendingRef = useRef(false);
   const queuedDirection = useRef<Direction | null>(null);
   const viewRef = useRef(view);
-  viewRef.current = view;
+
+  useEffect(() => {
+    viewRef.current = view;
+  }, [view]);
 
   const location = player.location;
   const onOwnBase =
@@ -168,18 +171,18 @@ export function GameShell({
         queuedDirection.current = direction;
         return;
       }
-      const next = await sendCommand("/api/game/move", {
-        actionId: newActionId(),
-        payload: { direction },
-      });
-      if (next?.player?.location) {
-        const returned = next.player.location.type === "BASE";
-        setFeedback(returned ? "Returned to base." : `Moved ${direction}.`);
-      }
-      const queued = queuedDirection.current;
-      queuedDirection.current = null;
-      if (queued) {
-        await move(queued);
+      let nextDirection: Direction | null = direction;
+      while (nextDirection) {
+        const next = await sendCommand("/api/game/move", {
+          actionId: newActionId(),
+          payload: { direction: nextDirection },
+        });
+        if (next?.player?.location) {
+          const returned = next.player.location.type === "BASE";
+          setFeedback(returned ? "Returned to base." : `Moved ${nextDirection}.`);
+        }
+        nextDirection = queuedDirection.current;
+        queuedDirection.current = null;
       }
     },
     [sendCommand],
