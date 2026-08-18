@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+:root {
+  --ash-bg: #10100e;
+  --ash-panel: #1a1814;
+  --ash-panel-2: #221f19;
+  --ash-border: #4a3d2c;
+  --ash-rust: #c45a2a;
+  --ash-olive: #8a8648;
+  --ash-beige: #d4c4a8;
+  --ash-text: #efe4cf;
+  --ash-muted: #9a8d78;
+  --ash-energy: #e0b423;
+  --ash-metal: #9bb0bf;
+  --ash-danger: #d44832;
+  --ash-focus: #e6c27a;
+}
+
+@theme inline {
+  --color-background: var(--ash-bg);
+  --color-foreground: var(--ash-text);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top, rgba(196, 90, 42, 0.08), transparent 34%),
+    repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.015) 0,
+      rgba(255, 255, 255, 0.015) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    var(--ash-bg);
+  color: var(--ash-text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--ash-focus);
+  outline-offset: 3px;
+}
+
+a {
+  color: var(--ash-beige);
+}
+
+.ash-frame {
+  border: 1px solid var(--ash-border);
+  background: linear-gradient(180deg, var(--ash-panel-2), var(--ash-panel));
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.ash-label {
+  color: var(--ash-muted);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+}
+
+.ash-value {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 1.05rem;
+}

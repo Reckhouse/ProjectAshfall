@@ -5,7 +5,7 @@
 | Area | Decision |
 |---|---|
 | Platform | Browser |
-| Hosting | Vercel |
+| Hosting | Vercel application + Neon Postgres |
 | World | Persistent square grid |
 | Primary controls | Tile-by-tile movement; keyboard support later |
 | Resources | Energy and Metal |
@@ -17,6 +17,8 @@
 | Base army | Defense troops |
 | Field army | Offense troops |
 | Phase 1 | Authentication + account provisioning + base spawn |
+
+Phase 1 identity is a first-party email/password session stored in Neon (`auth_users` / `auth_sessions`). Game tables reference `auth_user_id` only, so Neon Auth can replace the identity provider later without changing spawn or resources. See `docs/19_PHASE_1_IMPLEMENTATION_NOTES.md`.
 
 ## Carry-forward identity from earlier Ashfall
 

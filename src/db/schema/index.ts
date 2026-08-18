@@ -1,0 +1,191 @@
+import {
+  bigint,
+  boolean,
+  check,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  unique,
+  uuid,
+} from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+
+const timestamps = {
+  createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+};
+
+export const authUsers = pgTable("auth_users", {
+  id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+  email: text("email").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  ...timestamps,
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const authSessions = pgTable(
+  "auth_sessions",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull().unique(),
+    expiresAt: timestamp("expires_at", { withTimezone: true, mode: "date" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("auth_sessions_user_id_idx").on(table.userId),
+    index("auth_sessions_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export const worlds = pgTable(
+  "worlds",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    status: text("status").notNull(),
+    seed: text("seed").notNull(),
+    generationVersion: integer("generation_version").notNull(),
+    balanceVersion: integer("balance_version").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("worlds_status_check", sql`${table.status} in ('DRAFT', 'ACTIVE', 'CLOSED')`),
+    check("worlds_dims_check", sql`${table.width} > 0 and ${table.height} > 0`),
+  ],
+);
+
+export const worldRegions = pgTable(
+  "world_regions",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    worldId: uuid("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    minX: integer("min_x").notNull(),
+    maxX: integer("max_x").notNull(),
+    minY: integer("min_y").notNull(),
+    maxY: integer("max_y").notNull(),
+    spawnEnabled: boolean("spawn_enabled").notNull().default(false),
+    spawnWeight: integer("spawn_weight").notNull().default(1),
+    softPlayerCap: integer("soft_player_cap"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("world_regions_bounds_check", sql`${table.minX} <= ${table.maxX} and ${table.minY} <= ${table.maxY}`),
+    unique("world_regions_unique_bounds").on(table.worldId, table.minX, table.minY, table.maxX, table.maxY),
+  ],
+);
+
+export const players = pgTable(
+  "players",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    authUserId: text("auth_user_id").notNull().unique(),
+    status: text("status").notNull(),
+    worldId: uuid("world_id").references(() => worlds.id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [check("players_status_check", sql`${table.status} in ('PROVISIONING', 'ACTIVE', 'SUSPENDED')`)],
+);
+
+export const bases = pgTable(
+  "bases",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    worldId: uuid("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    playerId: uuid("player_id")
+      .notNull()
+      .unique()
+      .references(() => players.id),
+    x: integer("x").notNull(),
+    y: integer("y").notNull(),
+    level: integer("level").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    unique("bases_world_coord_unique").on(table.worldId, table.x, table.y),
+    index("bases_world_x_idx").on(table.worldId, table.x),
+    index("bases_world_y_idx").on(table.worldId, table.y),
+  ],
+);
+
+export const playerResources = pgTable(
+  "player_resources",
+  {
+    playerId: uuid("player_id")
+      .primaryKey()
+      .references(() => players.id),
+    energy: bigint("energy", { mode: "number" }).notNull(),
+    metal: bigint("metal", { mode: "number" }).notNull(),
+    energyAccruedAt: timestamp("energy_accrued_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    metalAccruedAt: timestamp("metal_accrued_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    check("player_resources_energy_nonneg", sql`${table.energy} >= 0`),
+    check("player_resources_metal_nonneg", sql`${table.metal} >= 0`),
+  ],
+);
+
+export const gameActions = pgTable(
+  "game_actions",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id),
+    actionKey: text("action_key").notNull(),
+    actionType: text("action_type").notNull(),
+    requestHash: text("request_hash"),
+    status: text("status").notNull(),
+    resultCode: text("result_code"),
+    resultPayload: jsonb("result_payload"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    completedAt: timestamp("completed_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    unique("game_actions_player_key_unique").on(table.playerId, table.actionKey),
+    check("game_actions_status_check", sql`${table.status} in ('STARTED', 'COMPLETED', 'FAILED')`),
+  ],
+);

@@ -24,6 +24,7 @@
 - `docs/16_RNG_AND_REPRODUCIBILITY.md`
 - `docs/17_DEPLOYMENT_VERCEL_NEON.md`
 - `docs/18_CURSOR_WORKFLOW.md`
+- `docs/19_PHASE_1_IMPLEMENTATION_NOTES.md`
 
 ## Balance
 - `balance/BALANCE_BASELINE.md`
