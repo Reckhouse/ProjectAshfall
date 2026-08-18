@@ -150,3 +150,8 @@ a {
   color: var(--ash-energy);
   font-weight: 700;
 }
+
+.ash-tile-cave {
+  color: var(--ash-olive);
+  font-weight: 700;
+}

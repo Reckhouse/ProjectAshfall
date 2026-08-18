@@ -33,7 +33,7 @@ export const balanceV1 = {
       energyPerHour: 12,
       metalPerHour: 6,
       energyCap: 800,
-      metalCap: 400,
+      metalCap: 2200,
     },
     nodes: {
       energyPerThousandTiles: 18,
@@ -45,9 +45,33 @@ export const balanceV1 = {
     upgrades: {
       base: {
         metalCost: 80,
+        metalCostByFromLevel: {
+          1: 80,
+          2: 250,
+          3: 650,
+          4: 1600,
+        },
         maxLevel: 5,
         extraEnergyPerHourPerLevel: 4,
         extraMetalPerHourPerLevel: 2,
+      },
+    },
+    caves: {
+      perThousandTiles: 5,
+      collectChebyshevRange: 1,
+      starterTier: 1,
+      energyCostByTier: {
+        1: 35,
+      },
+    },
+    tools: {
+      maxTier: 5,
+      bonusBpsByTier: {
+        1: 1000,
+        2: 2200,
+        3: 3800,
+        4: 6000,
+        5: 9000,
       },
     },
   },

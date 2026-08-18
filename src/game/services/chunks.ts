@@ -4,6 +4,7 @@ import type { AppDb } from "@/db/types";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError } from "@/game/domain/errors";
 import type { WorldView } from "@/game/domain/types";
+import { listCavesInBounds, materializeChunkCaves } from "@/game/services/caves";
 import { listNodesInBounds, materializeChunkNodes } from "@/game/services/nodes";
 import { chunkCoord, materializeChunk } from "@/game/world/chunks";
 
@@ -57,6 +58,7 @@ export async function getVisibleChunks(
     for (let cx = input.chunkX - radius; cx <= input.chunkX + radius; cx += 1) {
       chunks.push(materializeChunk(worldView, cx, cy));
       await materializeChunkNodes(db, worldView, cx, cy);
+      await materializeChunkCaves(db, worldView, cx, cy);
     }
   }
 
@@ -83,6 +85,14 @@ export async function getVisibleChunks(
     );
 
   const nodes = await listNodesInBounds(db, world.id, { minX, maxX, minY, maxY });
+  const cavesNearby = await listCavesInBounds(db, {
+    worldId: world.id,
+    playerId: player.id,
+    minX,
+    maxX,
+    minY,
+    maxY,
+  });
 
   return {
     world: world.slug,
@@ -107,6 +117,7 @@ export async function getVisibleChunks(
       resourceType: node.resourceType,
       remaining: node.remaining,
     })),
+    caves: cavesNearby,
   };
 }
 

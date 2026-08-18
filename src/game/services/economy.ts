@@ -5,8 +5,9 @@ import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError, isGameError } from "@/game/domain/errors";
 import type { PlayerSnapshot, ResourceKind } from "@/game/domain/types";
 import { applyPassiveAccrual } from "@/game/services/accrual";
+import { equippedToolBonus } from "@/game/services/caves";
 import { loadSnapshot } from "@/game/services/provision";
-import { chebyshevDistance } from "@/game/world/nodes";
+import { applyCollectionBonus, baseUpgradeMetalCost, chebyshevDistance } from "@/game/world/nodes";
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
 
@@ -79,7 +80,9 @@ export async function collectResource(
       }
       const cap = resource === "ENERGY" ? balanceV1.economy.passive.energyCap : balanceV1.economy.passive.metalCap;
       const current = resource === "ENERGY" ? resources.energy : resources.metal;
-      const granted = Math.min(amount, Math.max(0, cap - current));
+      const bonusBps = await equippedToolBonus(tx, player.id, resource);
+      const yielded = applyCollectionBonus(amount, bonusBps);
+      const granted = Math.min(yielded, Math.max(0, cap - current));
       await tx
         .update(playerResources)
         .set({
@@ -152,7 +155,10 @@ export async function upgradeBase(
         throw new GameError("INVALID_COMMAND", "Base is already at maximum level.", 400);
       }
 
-      const cost = balanceV1.economy.upgrades.base.metalCost;
+      const cost = baseUpgradeMetalCost(base.level);
+      if (cost === null) {
+        throw new GameError("INVALID_COMMAND", "Base is already at maximum level.", 400);
+      }
       const [resources] = await tx
         .select()
         .from(playerResources)

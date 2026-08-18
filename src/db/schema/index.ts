@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -192,7 +193,7 @@ export const worldFeatures = pgTable(
       .$defaultFn(() => new Date()),
   },
   (table) => [
-    check("world_features_type_check", sql`${table.featureType} in ('ENERGY_NODE', 'METAL_NODE')`),
+    check("world_features_type_check", sql`${table.featureType} in ('ENERGY_NODE', 'METAL_NODE', 'CAVE')`),
     unique("world_features_unique_tile").on(table.worldId, table.x, table.y),
     index("world_features_world_chunk_idx").on(table.worldId, table.chunkX, table.chunkY),
   ],
@@ -215,6 +216,61 @@ export const resourceNodes = pgTable(
   (table) => [
     check("resource_nodes_type_check", sql`${table.resourceType} in ('ENERGY', 'METAL')`),
     check("resource_nodes_remaining_check", sql`${table.remaining} >= 0 and ${table.remaining} <= ${table.capacity}`),
+  ],
+);
+
+export const caves = pgTable("caves", {
+  featureId: uuid("feature_id")
+    .primaryKey()
+    .references(() => worldFeatures.id, { onDelete: "cascade" }),
+  tier: integer("tier").notNull(),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const caveClears = pgTable(
+  "cave_clears",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    caveId: uuid("cave_id")
+      .notNull()
+      .references(() => caves.featureId, { onDelete: "cascade" }),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    rewardVersion: integer("reward_version").notNull(),
+    toolId: uuid("tool_id"),
+    clearedAt: timestamp("cleared_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [unique("cave_clears_player_cave_unique").on(table.playerId, table.caveId)],
+);
+
+export const toolInstances = pgTable(
+  "tool_instances",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    ownerPlayerId: uuid("owner_player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    resourceAffinity: text("resource_affinity").notNull(),
+    tier: integer("tier").notNull(),
+    collectionBonusBps: integer("collection_bonus_bps").notNull(),
+    equippedSlot: text("equipped_slot"),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("tool_instances_affinity_check", sql`${table.resourceAffinity} in ('ENERGY', 'METAL')`),
+    check("tool_instances_slot_check", sql`${table.equippedSlot} is null or ${table.equippedSlot} in ('ENERGY', 'METAL')`),
+    uniqueIndex("tool_instances_equipped_slot_unique")
+      .on(table.ownerPlayerId, table.equippedSlot)
+      .where(sql`${table.equippedSlot} is not null`),
+    index("tool_instances_owner_idx").on(table.ownerPlayerId),
   ],
 );
 

@@ -73,8 +73,8 @@ describe("economy", () => {
     expect(start.base?.level).toBe(1);
     const upgraded = await upgradeBase(db, "eco-2", crypto.randomUUID());
     expect(upgraded.upgrade.level).toBe(2);
-    expect(upgraded.upgrade.metalSpent).toBe(balanceV1.economy.upgrades.base.metalCost);
-    expect(upgraded.player.resources?.metal).toBe(start.resources!.metal - balanceV1.economy.upgrades.base.metalCost);
+    expect(upgraded.upgrade.metalSpent).toBe(80);
+    expect(upgraded.player.resources?.metal).toBe(start.resources!.metal - 80);
     expect(upgraded.player.resources).toEqual(
       expect.objectContaining(productionRates(2)),
     );
@@ -109,6 +109,25 @@ describe("economy", () => {
     expect(resources!.metal).toBe(start.resources!.metal + 6);
     await client.close();
   });
+
+  it("charges escalating Metal for later base levels", async () => {
+    const { db, client } = await setupIsolatedGameDb();
+    await ensurePlayerProvisioned(db, "eco-level-3", { rng: createSeededRng("eco-level-3") });
+    await upgradeBase(db, "eco-level-3", crypto.randomUUID());
+
+    await expect(upgradeBase(db, "eco-level-3", crypto.randomUUID())).rejects.toMatchObject({
+      code: "INSUFFICIENT_METAL",
+    });
+
+    const [playerRow] = await db.select().from(players).where(eq(players.authUserId, "eco-level-3"));
+    await db.update(playerResources).set({ metal: 250 }).where(eq(playerResources.playerId, playerRow!.id));
+
+    const upgraded = await upgradeBase(db, "eco-level-3", crypto.randomUUID());
+    expect(upgraded.upgrade.level).toBe(3);
+    expect(upgraded.upgrade.metalSpent).toBe(250);
+    expect(upgraded.player.resources?.metal).toBe(0);
+    await client.close();
+  });
 });
 
 describe("economy simulation", () => {
@@ -141,5 +160,23 @@ describe("economy simulation", () => {
     expect(250 + report[3]!.passiveEnergy).toBeLessThanOrEqual(balanceV1.economy.passive.energyCap);
     expect(productionRates(1).energyPerHour).toBeLessThan(productionRates(2).energyPerHour);
     expect(nodeCandidateAt).toEqual(expect.any(Function));
+  });
+
+  it("keeps level 5 far above a short metal-gathering session", () => {
+    const tenMinuteMetalNodes = 10;
+    const metalFromShortSession = balanceV1.startingResources.metal + tenMinuteMetalNodes * balanceV1.economy.nodes.metalYield;
+    const costToLevel3 =
+      balanceV1.economy.upgrades.base.metalCostByFromLevel[1] + balanceV1.economy.upgrades.base.metalCostByFromLevel[2];
+    const costToLevel5 = costToLevel3 +
+      balanceV1.economy.upgrades.base.metalCostByFromLevel[3] +
+      balanceV1.economy.upgrades.base.metalCostByFromLevel[4];
+
+    expect(balanceV1.economy.upgrades.base.metalCostByFromLevel[1]).toBe(80);
+    expect(balanceV1.economy.upgrades.base.metalCostByFromLevel[4]).toBe(1600);
+    expect(metalFromShortSession).toBeLessThan(costToLevel5);
+    expect(costToLevel5).toBeGreaterThan(tenMinuteMetalNodes * balanceV1.economy.nodes.metalYield * 10);
+    expect(balanceV1.economy.passive.metalCap).toBeGreaterThanOrEqual(
+      balanceV1.economy.upgrades.base.metalCostByFromLevel[4],
+    );
   });
 });

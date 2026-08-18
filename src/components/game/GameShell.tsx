@@ -6,7 +6,8 @@ import type { VisibleWorldView } from "@/game/services/chunks";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { chunkCoord, decodeTerrainKind } from "@/game/world/chunks";
 import { directionBetween } from "@/game/world/directions";
-import { pickGatherNode } from "@/game/world/nodes";
+import { pickGatherCave } from "@/game/world/caves";
+import { baseUpgradeMetalCost, pickGatherNode } from "@/game/world/nodes";
 import { LogoutButton } from "@/components/game/LogoutButton";
 
 type CommandResponse = {
@@ -16,6 +17,8 @@ type CommandResponse = {
   player?: PlayerSnapshot;
   collected?: { resource: "ENERGY" | "METAL"; amount: number };
   upgrade?: { level: number; metalSpent: number };
+  cave?: { id: string; tier: number };
+  tool?: { affinity: "ENERGY" | "METAL"; tier: number; bonusBps: number; equipped: boolean };
 };
 
 const TERRAIN_CLASS: Record<TerrainKind, string> = {
@@ -233,6 +236,46 @@ export function GameShell({
     await collectNode(node.id);
   }, [collectNode, location, view?.nodes]);
 
+  const clearCave = useCallback(
+    async (caveId: string) => {
+      const next = await sendCommand("/api/game/clear-cave", {
+        actionId: newActionId(),
+        payload: { caveId },
+      }, { refreshChunks: "always" });
+      if (next?.tool) {
+        const slot = next.tool.affinity === "ENERGY" ? "Energy" : "Metal";
+        setFeedback(
+          next.tool.equipped
+            ? `Cleared a cave. Equipped a T${next.tool.tier} ${slot} tool.`
+            : `Cleared a cave. Stored a T${next.tool.tier} ${slot} tool.`,
+        );
+        setView((current) => {
+          if (!current) {
+            return current;
+          }
+          return {
+            ...current,
+            caves: (current.caves ?? []).map((entry) => (entry.id === caveId ? { ...entry, cleared: true } : entry)),
+          };
+        });
+      }
+    },
+    [sendCommand],
+  );
+
+  const clearNearestCave = useCallback(async () => {
+    if (!location) {
+      setFeedback("No field location to clear a cave from.");
+      return;
+    }
+    const cave = pickGatherCave(view?.caves ?? [], location, balanceV1.economy.caves.collectChebyshevRange);
+    if (!cave) {
+      setFeedback("Move adjacent to a cave (C), then press C to clear it.");
+      return;
+    }
+    await clearCave(cave.id);
+  }, [clearCave, location, view?.caves]);
+
   const upgradeBase = useCallback(async () => {
     const next = await sendCommand("/api/game/upgrade-base", { actionId: newActionId() });
     if (next?.upgrade) {
@@ -252,6 +295,13 @@ export function GameShell({
         }
         return;
       }
+      if (event.key === "c" || event.key === "C") {
+        event.preventDefault();
+        if (!event.repeat) {
+          void clearNearestCave();
+        }
+        return;
+      }
       const direction = KEY_TO_DIRECTION[event.key];
       if (!direction) {
         return;
@@ -261,7 +311,7 @@ export function GameShell({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [gatherNearest, move]);
+  }, [clearNearestCave, gatherNearest, move]);
 
   const radius = balanceV1.movement.viewportRadius;
   const tiles = useMemo(() => {
@@ -279,7 +329,8 @@ export function GameShell({
         const otherBase = Boolean(view?.bases.some((base) => base.x === x && base.y === y && !base.owned));
         const passable = kind === "plains" || kind === "ash";
         const node = view?.nodes.find((entry) => entry.x === x && entry.y === y && entry.remaining > 0) ?? null;
-        const collectRange = Math.max(Math.abs(dx), Math.abs(dy)) <= balanceV1.economy.nodes.collectChebyshevRange;
+        const cave = view?.caves?.find((entry) => entry.x === x && entry.y === y && !entry.cleared) ?? null;
+        const interactRange = Math.max(Math.abs(dx), Math.abs(dy)) <= balanceV1.economy.nodes.collectChebyshevRange;
         cells.push({
           x,
           y,
@@ -292,7 +343,8 @@ export function GameShell({
           passable,
           isPlayer: dx === 0 && dy === 0,
           node,
-          collectRange,
+          cave,
+          collectRange: interactRange,
         });
       }
     }
@@ -302,6 +354,10 @@ export function GameShell({
   async function onTileClick(tile: (typeof tiles)[number]) {
     if (tile.node && tile.collectRange) {
       await collectNode(tile.node.id);
+      return;
+    }
+    if (tile.cave && tile.collectRange) {
+      await clearCave(tile.cave.id);
       return;
     }
     if (!tile.adjacent) {
@@ -358,6 +414,18 @@ export function GameShell({
             }
           />
           <StatusRow label="Base level" value={player.base ? String(player.base.level) : "—"} testId="base-level" />
+          <StatusRow
+            label="Energy tool"
+            value={formatTool(player.tools?.energy ?? null)}
+            tone="energy"
+            testId="energy-tool"
+          />
+          <StatusRow
+            label="Metal tool"
+            value={formatTool(player.tools?.metal ?? null)}
+            tone="metal"
+            testId="metal-tool"
+          />
           <div className="flex flex-col gap-2 pt-2">
             {location?.type === "BASE" ? (
               <button
@@ -377,10 +445,13 @@ export function GameShell({
                 type="button"
                 data-testid="upgrade-base"
                 onClick={() => void upgradeBase()}
-                disabled={pending || (player.resources?.metal ?? 0) < balanceV1.economy.upgrades.base.metalCost}
+                disabled={
+                  pending ||
+                  (player.resources?.metal ?? 0) < (baseUpgradeMetalCost(player.base.level) ?? Number.POSITIVE_INFINITY)
+                }
                 className="min-h-11 border border-[var(--ash-metal)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
               >
-                Upgrade base · {balanceV1.economy.upgrades.base.metalCost} Metal
+                Upgrade base · {baseUpgradeMetalCost(player.base.level)} Metal
               </button>
             ) : null}
             {location?.type === "FIELD" && onOwnBase ? (
@@ -403,11 +474,20 @@ export function GameShell({
             >
               Gather · G
             </button>
+            <button
+              type="button"
+              data-testid="clear-cave"
+              onClick={() => void clearNearestCave()}
+              disabled={pending || !location}
+              className="min-h-11 border border-[var(--ash-olive)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+            >
+              Clear cave · C
+            </button>
           </div>
         </aside>
 
         <section className="ash-frame p-4" aria-label="World grid">
-          <p className="ash-label mb-3">Local grid · WASD / arrows move · G gathers adjacent E/M</p>
+          <p className="ash-label mb-3">Local grid · WASD / arrows move · G gathers · C clears caves</p>
           <div
             className="ash-world-grid"
             role="grid"
@@ -423,11 +503,12 @@ export function GameShell({
                 tile.otherBase ? "ash-tile-other-base" : "",
                 tile.adjacent ? "ash-tile-adjacent" : "",
                 tile.node ? "ash-tile-node" : "",
+                tile.cave ? "ash-tile-cave" : "",
               ]
                 .filter(Boolean)
                 .join(" ");
-              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}`;
-              const clickable = Boolean(tile.adjacent || (tile.node && tile.collectRange));
+              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}${tile.cave ? " cave" : ""}`;
+              const clickable = Boolean(tile.adjacent || (tile.node && tile.collectRange) || (tile.cave && tile.collectRange));
               return (
                 <button
                   key={`${tile.x}:${tile.y}`}
@@ -445,9 +526,20 @@ export function GameShell({
                   data-player={tile.isPlayer ? "true" : "false"}
                   data-node-id={tile.node?.id}
                   data-node-type={tile.node?.resourceType}
+                  data-cave-id={tile.cave?.id}
                   onClick={() => void onTileClick(tile)}
                 >
-                  {tile.isPlayer ? "●" : tile.node ? (tile.node.resourceType === "ENERGY" ? "E" : "M") : tile.ownBase ? "⌂" : ""}
+                  {tile.isPlayer
+                    ? "●"
+                    : tile.node
+                      ? tile.node.resourceType === "ENERGY"
+                        ? "E"
+                        : "M"
+                      : tile.cave
+                        ? "C"
+                        : tile.ownBase
+                          ? "⌂"
+                          : ""}
                 </button>
               );
             })}
@@ -459,6 +551,13 @@ export function GameShell({
       </section>
     </main>
   );
+}
+
+function formatTool(tool: { tier: number; bonusBps: number } | null): string {
+  if (!tool) {
+    return "NONE";
+  }
+  return `T${tool.tier} +${Math.round(tool.bonusBps / 100)}%`;
 }
 
 function StatusRow({

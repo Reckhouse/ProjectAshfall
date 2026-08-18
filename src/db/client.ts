@@ -9,6 +9,7 @@ import * as schema from "@/db/schema";
 import { PHASE1_MIGRATION_SQL } from "@/db/migrations/phase1";
 import { PHASE2_MIGRATION_SQL } from "@/db/migrations/phase2";
 import { PHASE3_MIGRATION_SQL } from "@/db/migrations/phase3";
+import { PHASE4_MIGRATION_SQL } from "@/db/migrations/phase4";
 import type { AppDb } from "@/db/types";
 import { getServerEnv, pgliteDataDir } from "@/lib/env";
 import { seedActiveWorld } from "@/db/seed";
@@ -38,7 +39,7 @@ export function splitSqlStatements(sql: string): string[] {
     .filter((statement) => statement.length > 0 && !statement.startsWith("--"));
 }
 
-const SCHEMA_SQL = [PHASE1_MIGRATION_SQL, PHASE2_MIGRATION_SQL, PHASE3_MIGRATION_SQL] as const;
+const SCHEMA_SQL = [PHASE1_MIGRATION_SQL, PHASE2_MIGRATION_SQL, PHASE3_MIGRATION_SQL, PHASE4_MIGRATION_SQL] as const;
 
 async function applySchemaWithExec(execSql: (sql: string) => Promise<unknown>): Promise<void> {
   for (const migration of SCHEMA_SQL) {

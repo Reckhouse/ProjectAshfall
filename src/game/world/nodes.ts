@@ -94,6 +94,27 @@ export function productionRates(baseLevel: number): { energyPerHour: number; met
   };
 }
 
+export function baseUpgradeMetalCost(currentLevel: number): number | null {
+  if (currentLevel >= balanceV1.economy.upgrades.base.maxLevel) {
+    return null;
+  }
+  const costs = balanceV1.economy.upgrades.base.metalCostByFromLevel;
+  const cost = costs[currentLevel as keyof typeof costs];
+  return typeof cost === "number" ? cost : null;
+}
+
+export function collectionBonusBps(tier: number | null | undefined): number {
+  if (!tier || tier <= 0) {
+    return 0;
+  }
+  const bonuses = balanceV1.economy.tools.bonusBpsByTier;
+  return bonuses[tier as keyof typeof bonuses] ?? 0;
+}
+
+export function applyCollectionBonus(baseAmount: number, bonusBps: number): number {
+  return Math.floor((baseAmount * (10_000 + Math.max(0, bonusBps))) / 10_000);
+}
+
 export function accruedUnits(input: {
   lastAccruedAt: Date;
   perHour: number;

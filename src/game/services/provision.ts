@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { bases, gameActions, playerResources, players, worldRegions, worlds } from "@/db/schema";
+import { bases, gameActions, playerResources, players, toolInstances, worldRegions, worlds } from "@/db/schema";
 import type { AppDb, AppTx } from "@/db/types";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError } from "@/game/domain/errors";
@@ -50,6 +50,9 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
     .from(playerResources)
     .where(eq(playerResources.playerId, player.id))
     .limit(1);
+  const equippedTools = await tx.select().from(toolInstances).where(eq(toolInstances.ownerPlayerId, player.id));
+  const energyTool = equippedTools.find((tool) => tool.equippedSlot === "ENERGY");
+  const metalTool = equippedTools.find((tool) => tool.equippedSlot === "METAL");
 
   return {
     status: player.status as PlayerSnapshot["status"],
@@ -77,6 +80,14 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
             y: player.y,
           }
         : null,
+    tools: {
+      energy: energyTool
+        ? { tier: energyTool.tier, bonusBps: energyTool.collectionBonusBps }
+        : null,
+      metal: metalTool
+        ? { tier: metalTool.tier, bonusBps: metalTool.collectionBonusBps }
+        : null,
+    },
   };
 }
 

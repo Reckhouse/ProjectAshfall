@@ -11,10 +11,14 @@ export const CLIENT_OWNED_STATE_KEYS = [
   "base",
   "location",
   "locationType",
-    "remaining",
-    "amount",
-    "capacity",
-  ] as const;
+  "remaining",
+  "amount",
+  "capacity",
+  "tier",
+  "bonusBps",
+  "affinity",
+  "collectionBonusBps",
+] as const;
 
 export function rejectClientOwnedState(body: unknown): void {
   if (!body || typeof body !== "object") {
@@ -61,6 +65,17 @@ export const collectCommandSchema = z
     payload: z
       .object({
         nodeId: z.uuid(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const clearCaveCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        caveId: z.uuid(),
       })
       .strict(),
   })
