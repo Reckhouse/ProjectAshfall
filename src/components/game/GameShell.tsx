@@ -13,6 +13,8 @@ type CommandResponse = {
   code?: string;
   message?: string;
   player?: PlayerSnapshot;
+  collected?: { resource: "ENERGY" | "METAL"; amount: number };
+  upgrade?: { level: number; metalSpent: number };
 };
 
 const TERRAIN_CLASS: Record<TerrainKind, string> = {
@@ -89,7 +91,7 @@ export function GameShell({
     setView(data);
   }, []);
 
-  const sendCommand = useCallback(async (path: string, body: object): Promise<PlayerSnapshot | null> => {
+  const sendCommand = useCallback(async (path: string, body: object): Promise<CommandResponse | null> => {
     if (pendingRef.current) {
       return null;
     }
@@ -116,7 +118,7 @@ export function GameShell({
       }
       setPlayer(data.player);
       await loadChunks(data.player);
-      return data.player;
+      return data;
     } catch {
       setFeedback("Command channel failed.");
       return null;
@@ -132,8 +134,8 @@ export function GameShell({
         actionId: newActionId(),
         payload: { direction },
       });
-      if (next?.location) {
-        const returned = next.location.type === "BASE";
+      if (next?.player?.location) {
+        const returned = next.player.location.type === "BASE";
         setFeedback(returned ? "Returned to base." : `Moved ${direction}.`);
       }
     },
@@ -151,6 +153,26 @@ export function GameShell({
     const next = await sendCommand("/api/game/enter-base", { actionId: newActionId() });
     if (next) {
       setFeedback("Entered base.");
+    }
+  }, [sendCommand]);
+
+  const collectNode = useCallback(
+    async (nodeId: string) => {
+      const next = await sendCommand("/api/game/collect", {
+        actionId: newActionId(),
+        payload: { nodeId },
+      });
+      if (next?.collected) {
+        setFeedback(`Collected ${next.collected.amount} ${next.collected.resource}.`);
+      }
+    },
+    [sendCommand],
+  );
+
+  const upgradeBase = useCallback(async () => {
+    const next = await sendCommand("/api/game/upgrade-base", { actionId: newActionId() });
+    if (next?.upgrade) {
+      setFeedback(`Base upgraded to level ${next.upgrade.level}.`);
     }
   }, [sendCommand]);
 
@@ -182,13 +204,32 @@ export function GameShell({
         const ownBase = Boolean(player.base && player.base.x === x && player.base.y === y);
         const otherBase = Boolean(view?.bases.some((base) => base.x === x && base.y === y && !base.owned));
         const passable = kind === "plains" || kind === "ash";
-        cells.push({ x, y, dx, dy, kind, adjacent, ownBase, otherBase, passable, isPlayer: dx === 0 && dy === 0 });
+        const node = view?.nodes.find((entry) => entry.x === x && entry.y === y && entry.remaining > 0) ?? null;
+        const collectRange = Math.max(Math.abs(dx), Math.abs(dy)) <= balanceV1.economy.nodes.collectChebyshevRange;
+        cells.push({
+          x,
+          y,
+          dx,
+          dy,
+          kind,
+          adjacent,
+          ownBase,
+          otherBase,
+          passable,
+          isPlayer: dx === 0 && dy === 0,
+          node,
+          collectRange,
+        });
       }
     }
     return cells;
   }, [location, player.base, radius, view]);
 
   async function onTileClick(tile: (typeof tiles)[number]) {
+    if (tile.node && tile.collectRange) {
+      await collectNode(tile.node.id);
+      return;
+    }
     if (!tile.adjacent) {
       return;
     }
@@ -234,6 +275,15 @@ export function GameShell({
             value={player.resources ? String(player.resources.metal) : "—"}
             tone="metal"
           />
+          <StatusRow
+            label="Production"
+            value={
+              player.resources
+                ? `${player.resources.energyPerHour}/h E · ${player.resources.metalPerHour}/h M`
+                : "—"
+            }
+          />
+          <StatusRow label="Base level" value={player.base ? String(player.base.level) : "—"} testId="base-level" />
           <div className="flex flex-col gap-2 pt-2">
             {location?.type === "BASE" ? (
               <button
@@ -244,6 +294,19 @@ export function GameShell({
                 className="min-h-11 border border-[var(--ash-rust)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
               >
                 Leave base
+              </button>
+            ) : null}
+            {location?.type === "BASE" &&
+            player.base &&
+            player.base.level < balanceV1.economy.upgrades.base.maxLevel ? (
+              <button
+                type="button"
+                data-testid="upgrade-base"
+                onClick={() => void upgradeBase()}
+                disabled={pending || (player.resources?.metal ?? 0) < balanceV1.economy.upgrades.base.metalCost}
+                className="min-h-11 border border-[var(--ash-metal)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+              >
+                Upgrade base · {balanceV1.economy.upgrades.base.metalCost} Metal
               </button>
             ) : null}
             {location?.type === "FIELD" && onOwnBase ? (
@@ -276,10 +339,12 @@ export function GameShell({
                 tile.ownBase ? "ash-tile-own-base" : "",
                 tile.otherBase ? "ash-tile-other-base" : "",
                 tile.adjacent ? "ash-tile-adjacent" : "",
+                tile.node ? "ash-tile-node" : "",
               ]
                 .filter(Boolean)
                 .join(" ");
-              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}`;
+              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}`;
+              const clickable = Boolean(tile.adjacent || (tile.node && tile.collectRange));
               return (
                 <button
                   key={`${tile.x}:${tile.y}`}
@@ -288,16 +353,18 @@ export function GameShell({
                   className={className}
                   aria-label={label}
                   aria-current={tile.isPlayer ? "true" : undefined}
-                  disabled={pending || !tile.adjacent}
+                  disabled={pending || !clickable}
                   data-world-x={tile.x}
                   data-world-y={tile.y}
                   data-adjacent={tile.adjacent ? "true" : "false"}
                   data-passable={tile.passable ? "true" : "false"}
                   data-own-base={tile.ownBase ? "true" : "false"}
                   data-player={tile.isPlayer ? "true" : "false"}
+                  data-node-id={tile.node?.id}
+                  data-node-type={tile.node?.resourceType}
                   onClick={() => void onTileClick(tile)}
                 >
-                  {tile.isPlayer ? "●" : tile.ownBase ? "⌂" : ""}
+                  {tile.isPlayer ? "●" : tile.node ? (tile.node.resourceType === "ENERGY" ? "E" : "M") : tile.ownBase ? "⌂" : ""}
                 </button>
               );
             })}

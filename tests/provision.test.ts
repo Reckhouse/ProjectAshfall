@@ -25,6 +25,8 @@ describe("player provisioning", () => {
     expect(snapshot.resources).toEqual({
       energy: balanceV1.startingResources.energy,
       metal: balanceV1.startingResources.metal,
+      energyPerHour: balanceV1.economy.passive.energyPerHour,
+      metalPerHour: balanceV1.economy.passive.metalPerHour,
     });
     expect(snapshot.location).toEqual({
       type: "BASE",

@@ -7,6 +7,8 @@ import type { LocationType, PlayerSnapshot, Rng, SpawnRegion, WorldView } from "
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
 import { allocateBaseSpawn } from "@/game/services/spawn";
+import { applyPassiveAccrual } from "@/game/services/accrual";
+import { productionRates } from "@/game/world/nodes";
 import { createCryptoRng } from "@/game/world/rng";
 
 function toWorldView(world: typeof worlds.$inferSelect): WorldView {
@@ -64,6 +66,7 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
       ? {
           energy: resources.energy,
           metal: resources.metal,
+          ...productionRates(base?.level ?? 1),
         }
       : null,
     location:
@@ -230,6 +233,7 @@ export async function ensurePlayerProvisioned(
         });
       }
 
+      await applyPassiveAccrual(tx, player.id);
       return loadSnapshot(tx, player.id);
     });
 
@@ -257,5 +261,6 @@ export async function getPlayerSnapshot(db: AppDb, authUserId: string): Promise<
   if (!player) {
     return null;
   }
+  await applyPassiveAccrual(db, player.id);
   return loadSnapshot(db, player.id);
 }

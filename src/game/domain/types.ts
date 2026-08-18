@@ -25,6 +25,8 @@ export type SpawnRegion = {
 export type LocationType = "BASE" | "FIELD";
 export type Direction = "north" | "south" | "east" | "west";
 export type TerrainKind = "plains" | "ash" | "rock" | "ruin";
+export type ResourceKind = "ENERGY" | "METAL";
+export type FeatureType = "ENERGY_NODE" | "METAL_NODE";
 
 export type PlayerSnapshot = {
   status: PlayerStatus;
@@ -38,6 +40,8 @@ export type PlayerSnapshot = {
   resources: {
     energy: number;
     metal: number;
+    energyPerHour: number;
+    metalPerHour: number;
   } | null;
   location: {
     type: LocationType;

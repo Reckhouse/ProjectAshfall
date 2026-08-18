@@ -11,8 +11,10 @@ export const CLIENT_OWNED_STATE_KEYS = [
   "base",
   "location",
   "locationType",
-  "seed",
-] as const;
+    "remaining",
+    "amount",
+    "capacity",
+  ] as const;
 
 export function rejectClientOwnedState(body: unknown): void {
   if (!body || typeof body !== "object") {
@@ -53,4 +55,13 @@ export const chunkQuerySchema = z.object({
   radius: z.number().int().min(0).max(2).optional(),
 });
 
-export type MoveCommand = z.infer<typeof moveCommandSchema>;
+export const collectCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        nodeId: z.uuid(),
+      })
+      .strict(),
+  })
+  .strict();

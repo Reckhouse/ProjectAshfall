@@ -9,6 +9,7 @@ type LogFields = {
   balanceVersion?: number;
   attempts?: number;
   worldSlug?: string;
+  amount?: number;
 };
 
 function redact(value: unknown): unknown {

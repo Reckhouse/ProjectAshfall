@@ -4,6 +4,7 @@ import type { AppDb } from "@/db/types";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError } from "@/game/domain/errors";
 import type { WorldView } from "@/game/domain/types";
+import { listNodesInBounds, materializeChunkNodes } from "@/game/services/nodes";
 import { chunkCoord, materializeChunk } from "@/game/world/chunks";
 
 function toWorldView(world: typeof worlds.$inferSelect): WorldView {
@@ -55,6 +56,7 @@ export async function getVisibleChunks(
   for (let cy = input.chunkY - radius; cy <= input.chunkY + radius; cy += 1) {
     for (let cx = input.chunkX - radius; cx <= input.chunkX + radius; cx += 1) {
       chunks.push(materializeChunk(worldView, cx, cy));
+      await materializeChunkNodes(db, worldView, cx, cy);
     }
   }
 
@@ -80,6 +82,8 @@ export async function getVisibleChunks(
       ),
     );
 
+  const nodes = await listNodesInBounds(db, world.id, { minX, maxX, minY, maxY });
+
   return {
     world: world.slug,
     chunkSize: size,
@@ -95,6 +99,13 @@ export async function getVisibleChunks(
       x: base.x,
       y: base.y,
       owned: base.playerId === player.id,
+    })),
+    nodes: nodes.map((node) => ({
+      id: node.id,
+      x: node.x,
+      y: node.y,
+      resourceType: node.resourceType,
+      remaining: node.remaining,
     })),
   };
 }

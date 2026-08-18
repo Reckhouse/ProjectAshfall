@@ -174,6 +174,50 @@ export const playerResources = pgTable(
   ],
 );
 
+export const worldFeatures = pgTable(
+  "world_features",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    worldId: uuid("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    chunkX: integer("chunk_x").notNull(),
+    chunkY: integer("chunk_y").notNull(),
+    featureType: text("feature_type").notNull(),
+    x: integer("x").notNull(),
+    y: integer("y").notNull(),
+    generationVersion: integer("generation_version").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("world_features_type_check", sql`${table.featureType} in ('ENERGY_NODE', 'METAL_NODE')`),
+    unique("world_features_unique_tile").on(table.worldId, table.x, table.y),
+    index("world_features_world_chunk_idx").on(table.worldId, table.chunkX, table.chunkY),
+  ],
+);
+
+export const resourceNodes = pgTable(
+  "resource_nodes",
+  {
+    featureId: uuid("feature_id")
+      .primaryKey()
+      .references(() => worldFeatures.id, { onDelete: "cascade" }),
+    resourceType: text("resource_type").notNull(),
+    capacity: integer("capacity").notNull(),
+    remaining: integer("remaining").notNull(),
+    version: integer("version").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("resource_nodes_type_check", sql`${table.resourceType} in ('ENERGY', 'METAL')`),
+    check("resource_nodes_remaining_check", sql`${table.remaining} >= 0 and ${table.remaining} <= ${table.capacity}`),
+  ],
+);
+
 export const gameActions = pgTable(
   "game_actions",
   {

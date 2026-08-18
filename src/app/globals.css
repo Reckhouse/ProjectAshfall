@@ -145,3 +145,8 @@ a {
   outline: 1px dashed var(--ash-muted);
   outline-offset: -3px;
 }
+
+.ash-tile-node {
+  color: var(--ash-energy);
+  font-weight: 700;
+}
