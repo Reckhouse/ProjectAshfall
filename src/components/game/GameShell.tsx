@@ -2,33 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Direction, PlayerSnapshot, TerrainKind } from "@/game/domain/types";
+import type { VisibleWorldView } from "@/game/services/chunks";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { chunkCoord, decodeTerrainKind } from "@/game/world/chunks";
 import { directionBetween } from "@/game/world/directions";
 import { LogoutButton } from "@/components/game/LogoutButton";
-
-type ChunkDto = {
-  chunkX: number;
-  chunkY: number;
-  size: number;
-  originX: number;
-  originY: number;
-  terrain: number[];
-};
-
-type WorldViewDto = {
-  world: string;
-  chunkSize: number;
-  player: {
-    x: number | null;
-    y: number | null;
-    locationType: string;
-    chunkX: number;
-    chunkY: number;
-  };
-  chunks: ChunkDto[];
-  bases: Array<{ x: number; y: number; owned: boolean }>;
-};
 
 type CommandResponse = {
   ok: boolean;
@@ -63,7 +41,7 @@ function newActionId(): string {
   return crypto.randomUUID();
 }
 
-function terrainAt(view: WorldViewDto | null, x: number, y: number): TerrainKind | null {
+function terrainAt(view: VisibleWorldView | null, x: number, y: number): TerrainKind | null {
   if (!view) {
     return null;
   }
@@ -78,9 +56,15 @@ function terrainAt(view: WorldViewDto | null, x: number, y: number): TerrainKind
   return null;
 }
 
-export function GameShell({ player: initialPlayer }: { player: PlayerSnapshot }) {
+export function GameShell({
+  player: initialPlayer,
+  initialView,
+}: {
+  player: PlayerSnapshot;
+  initialView: VisibleWorldView | null;
+}) {
   const [player, setPlayer] = useState(initialPlayer);
-  const [view, setView] = useState<WorldViewDto | null>(null);
+  const [view, setView] = useState<VisibleWorldView | null>(initialView);
   const [feedback, setFeedback] = useState("Command channel open.");
   const [pending, setPending] = useState(false);
   const lastCommandAt = useRef(0);
@@ -97,17 +81,13 @@ export function GameShell({ player: initialPlayer }: { player: PlayerSnapshot })
     const cx = chunkCoord(snapshot.location.x);
     const cy = chunkCoord(snapshot.location.y);
     const response = await fetch(`/api/game/world/chunks?cx=${cx}&cy=${cy}&radius=1`);
-    const data = (await response.json()) as WorldViewDto & CommandResponse;
+    const data = (await response.json()) as VisibleWorldView & CommandResponse;
     if (!response.ok || data.ok === false) {
       setFeedback(data.message ?? "Unable to load the surrounding grid.");
       return;
     }
     setView(data);
   }, []);
-
-  useEffect(() => {
-    void loadChunks(player);
-  }, [loadChunks, player]);
 
   const sendCommand = useCallback(async (path: string, body: object): Promise<PlayerSnapshot | null> => {
     if (pendingRef.current) {
@@ -135,6 +115,7 @@ export function GameShell({ player: initialPlayer }: { player: PlayerSnapshot })
         return null;
       }
       setPlayer(data.player);
+      await loadChunks(data.player);
       return data.player;
     } catch {
       setFeedback("Command channel failed.");
@@ -143,7 +124,7 @@ export function GameShell({ player: initialPlayer }: { player: PlayerSnapshot })
       pendingRef.current = false;
       setPending(false);
     }
-  }, []);
+  }, [loadChunks]);
 
   const move = useCallback(
     async (direction: Direction) => {

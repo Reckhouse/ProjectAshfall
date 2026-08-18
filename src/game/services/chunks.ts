@@ -87,8 +87,8 @@ export async function getVisibleChunks(
       x: player.x,
       y: player.y,
       locationType: player.locationType,
-      chunkX: player.x === null ? chunkCoord(0) : chunkCoord(player.x),
-      chunkY: player.y === null ? chunkCoord(0) : chunkCoord(player.y),
+      chunkX: playerChunkX,
+      chunkY: playerChunkY,
     },
     chunks,
     bases: nearbyBases.map((base) => ({
@@ -98,3 +98,5 @@ export async function getVisibleChunks(
     })),
   };
 }
+
+export type VisibleWorldView = Awaited<ReturnType<typeof getVisibleChunks>>;
