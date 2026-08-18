@@ -7,6 +7,7 @@ import { Pool, neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
 import * as schema from "@/db/schema";
 import { PHASE1_MIGRATION_SQL } from "@/db/migrations/phase1";
+import { PHASE2_MIGRATION_SQL } from "@/db/migrations/phase2";
 import type { AppDb } from "@/db/types";
 import { getServerEnv, pgliteDataDir } from "@/lib/env";
 import { seedActiveWorld } from "@/db/seed";
@@ -36,9 +37,19 @@ export function splitSqlStatements(sql: string): string[] {
     .filter((statement) => statement.length > 0 && !statement.startsWith("--"));
 }
 
-async function applyPhase1SchemaWithExec(execSql: (sql: string) => Promise<unknown>): Promise<void> {
-  for (const statement of splitSqlStatements(PHASE1_MIGRATION_SQL)) {
-    await execSql(statement);
+const SCHEMA_SQL = [PHASE1_MIGRATION_SQL, PHASE2_MIGRATION_SQL] as const;
+
+async function applySchemaWithExec(execSql: (sql: string) => Promise<unknown>): Promise<void> {
+  for (const migration of SCHEMA_SQL) {
+    for (const statement of splitSqlStatements(migration)) {
+      await execSql(statement);
+    }
+  }
+}
+
+async function applySchemaOnPglite(client: PGlite): Promise<void> {
+  for (const migration of SCHEMA_SQL) {
+    await client.exec(migration);
   }
 }
 
@@ -50,7 +61,7 @@ async function createPgliteDb(dataDir: string): Promise<AppDb> {
 
   const client = dataDir === "memory://" ? new PGlite() : new PGlite(dataDir);
   await client.waitReady;
-  await client.exec(PHASE1_MIGRATION_SQL);
+  await applySchemaOnPglite(client);
   const db = drizzlePglite(client, { schema }) as unknown as AppDb;
   store.pglite = client;
   store.db = db;
@@ -61,7 +72,7 @@ async function createPgliteDb(dataDir: string): Promise<AppDb> {
 async function createNeonDb(connectionString: string): Promise<AppDb> {
   const store = getStore();
   const pool = new Pool({ connectionString, max: 8 });
-  await applyPhase1SchemaWithExec(async (sql) => {
+  await applySchemaWithExec(async (sql) => {
     await pool.query(sql);
   });
   const db = drizzleNeon(pool, { schema }) as unknown as AppDb;
@@ -90,7 +101,7 @@ export async function getDb(): Promise<AppDb> {
 export async function createMemoryDb(): Promise<{ db: AppDb; client: PGlite }> {
   const client = new PGlite();
   await client.waitReady;
-  await client.exec(PHASE1_MIGRATION_SQL);
+  await applySchemaOnPglite(client);
   const db = drizzlePglite(client, { schema }) as unknown as AppDb;
   return { db, client };
 }

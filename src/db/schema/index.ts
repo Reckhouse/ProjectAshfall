@@ -108,8 +108,16 @@ export const players = pgTable(
       .notNull()
       .$defaultFn(() => new Date()),
     version: integer("version").notNull().default(1),
+    locationType: text("location_type").notNull().default("BASE"),
+    x: integer("x"),
+    y: integer("y"),
+    lastMoveAt: timestamp("last_move_at", { withTimezone: true, mode: "date" }),
   },
-  (table) => [check("players_status_check", sql`${table.status} in ('PROVISIONING', 'ACTIVE', 'SUSPENDED')`)],
+  (table) => [
+    check("players_status_check", sql`${table.status} in ('PROVISIONING', 'ACTIVE', 'SUSPENDED')`),
+    check("players_location_type_check", sql`${table.locationType} in ('BASE', 'FIELD')`),
+    index("players_world_coord_idx").on(table.worldId, table.x, table.y),
+  ],
 );
 
 export const bases = pgTable(

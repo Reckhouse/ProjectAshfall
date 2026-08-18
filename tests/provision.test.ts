@@ -26,6 +26,11 @@ describe("player provisioning", () => {
       energy: balanceV1.startingResources.energy,
       metal: balanceV1.startingResources.metal,
     });
+    expect(snapshot.location).toEqual({
+      type: "BASE",
+      x: snapshot.base?.x,
+      y: snapshot.base?.y,
+    });
 
     const playerRows = await db.select().from(players);
     const baseRows = await db.select().from(bases);

@@ -22,6 +22,12 @@ export const balanceV1 = {
   terrain: {
     phase1BlockedPercent: 8,
   },
+  movement: {
+    minIntervalMs: 150,
+    maxCommandsPerMinute: 120,
+    viewportRadius: 5,
+    maxChunkRadius: 1,
+  },
 } as const;
 
 export type BalanceV1 = typeof balanceV1;

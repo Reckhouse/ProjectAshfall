@@ -3,7 +3,7 @@ import { bases, gameActions, playerResources, players, worldRegions, worlds } fr
 import type { AppDb, AppTx } from "@/db/types";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError } from "@/game/domain/errors";
-import type { PlayerSnapshot, Rng, SpawnRegion, WorldView } from "@/game/domain/types";
+import type { LocationType, PlayerSnapshot, Rng, SpawnRegion, WorldView } from "@/game/domain/types";
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
 import { allocateBaseSpawn } from "@/game/services/spawn";
@@ -33,7 +33,7 @@ function toRegion(region: typeof worldRegions.$inferSelect): SpawnRegion {
   };
 }
 
-async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise<PlayerSnapshot> {
+export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise<PlayerSnapshot> {
   const [player] = await tx.select().from(players).where(eq(players.id, playerId)).limit(1);
   if (!player) {
     throw new GameError("PLAYER_NOT_PROVISIONED", "Player record was not found.", 404);
@@ -66,6 +66,14 @@ async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise<Player
           metal: resources.metal,
         }
       : null,
+    location:
+      player.x !== null && player.y !== null
+        ? {
+            type: player.locationType as LocationType,
+            x: player.x,
+            y: player.y,
+          }
+        : null,
   };
 }
 
@@ -188,13 +196,26 @@ export async function ensurePlayerProvisioned(
           .onConflictDoNothing({ target: playerResources.playerId });
       }
 
-      if (player.status !== "ACTIVE") {
+      const [establishedBase] = await tx.select().from(bases).where(eq(bases.playerId, player.id)).limit(1);
+      const locationPatch: {
+        locationType?: string;
+        x?: number;
+        y?: number;
+      } = {};
+      if (establishedBase && (player.x === null || player.y === null)) {
+        locationPatch.x = player.x ?? establishedBase.x;
+        locationPatch.y = player.y ?? establishedBase.y;
+        locationPatch.locationType = player.locationType || "BASE";
+      }
+
+      if (player.status !== "ACTIVE" || Object.keys(locationPatch).length > 0) {
         await tx
           .update(players)
           .set({
             status: "ACTIVE",
             updatedAt: new Date(),
             version: player.version + 1,
+            ...locationPatch,
           })
           .where(eq(players.id, player.id));
       }

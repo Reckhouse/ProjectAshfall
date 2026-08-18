@@ -16,15 +16,15 @@ test("register provisions a base that survives refresh, logout, and login", asyn
   await expect(page).toHaveURL(/\/game/);
   await expect(page.getByText("ESTABLISHED")).toBeVisible();
   await expect(page.getByText("ASHFALL-01")).toBeVisible();
-  const coordinate = page.getByText(/^\d+, \d+$/);
-  await expect(coordinate).toBeVisible();
+  const coordinate = page.getByTestId("base-coord");
+  await expect(coordinate).toHaveText(/^\d+, \d+$/);
   const firstCoordinate = (await coordinate.textContent())?.trim();
   expect(firstCoordinate).toMatch(/^\d+, \d+$/);
   await expect(page.getByText("250")).toBeVisible();
   await expect(page.getByText("150")).toBeVisible();
 
   await page.reload();
-  await expect(page.getByText(firstCoordinate!)).toBeVisible();
+  await expect(page.getByTestId("base-coord")).toHaveText(firstCoordinate!);
 
   await page.getByRole("button", { name: "Log out" }).click();
   await expect(page).toHaveURL("/");
@@ -36,7 +36,7 @@ test("register provisions a base that survives refresh, logout, and login", asyn
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/game/);
-  await expect(page.getByText(firstCoordinate!)).toBeVisible();
+  await expect(page.getByTestId("base-coord")).toHaveText(firstCoordinate!);
 });
 
 test("unauthenticated visitors cannot open the command shell", async ({ page }) => {
