@@ -23,8 +23,8 @@ export const balanceV1 = {
     phase1BlockedPercent: 8,
   },
   movement: {
-    minIntervalMs: 150,
-    maxCommandsPerMinute: 120,
+    minIntervalMs: 80,
+    maxCommandsPerMinute: 300,
     viewportRadius: 5,
     maxChunkRadius: 1,
   },

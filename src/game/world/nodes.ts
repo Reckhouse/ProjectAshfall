@@ -60,6 +60,30 @@ export function chebyshevDistance(a: { x: number; y: number }, b: { x: number; y
   return Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 }
 
+export function pickGatherNode<T extends { id: string; x: number; y: number; remaining: number; resourceType: string }>(
+  nodes: readonly T[],
+  origin: { x: number; y: number },
+  range: number,
+): T | null {
+  const inRange = nodes.filter(
+    (node) => node.remaining > 0 && chebyshevDistance(origin, node) <= range,
+  );
+  if (inRange.length === 0) {
+    return null;
+  }
+  inRange.sort((left, right) => {
+    const distanceDelta = chebyshevDistance(origin, left) - chebyshevDistance(origin, right);
+    if (distanceDelta !== 0) {
+      return distanceDelta;
+    }
+    if (left.resourceType !== right.resourceType) {
+      return left.resourceType === "ENERGY" ? -1 : 1;
+    }
+    return left.id.localeCompare(right.id);
+  });
+  return inRange[0]!;
+}
+
 export function productionRates(baseLevel: number): { energyPerHour: number; metalPerHour: number } {
   const extraLevels = Math.max(0, baseLevel - 1);
   return {

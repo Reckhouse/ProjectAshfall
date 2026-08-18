@@ -6,6 +6,7 @@ import type { VisibleWorldView } from "@/game/services/chunks";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { chunkCoord, decodeTerrainKind } from "@/game/world/chunks";
 import { directionBetween } from "@/game/world/directions";
+import { pickGatherNode } from "@/game/world/nodes";
 import { LogoutButton } from "@/components/game/LogoutButton";
 
 type CommandResponse = {
@@ -71,13 +72,38 @@ export function GameShell({
   const [pending, setPending] = useState(false);
   const lastCommandAt = useRef(0);
   const pendingRef = useRef(false);
+  const queuedDirection = useRef<Direction | null>(null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   const location = player.location;
   const onOwnBase =
     Boolean(player.base && location && player.base.x === location.x && player.base.y === location.y);
 
-  const loadChunks = useCallback(async (snapshot: PlayerSnapshot) => {
+  const viewCoversViewport = useCallback((snapshot: PlayerSnapshot, current: VisibleWorldView | null) => {
+    if (!snapshot.location || !current) {
+      return false;
+    }
+    const radius = balanceV1.movement.viewportRadius;
+    for (const [dx, dy] of [
+      [-radius, -radius],
+      [radius, -radius],
+      [-radius, radius],
+      [radius, radius],
+      [0, 0],
+    ] as const) {
+      if (!terrainAt(current, snapshot.location.x + dx, snapshot.location.y + dy)) {
+        return false;
+      }
+    }
+    return true;
+  }, []);
+
+  const loadChunks = useCallback(async (snapshot: PlayerSnapshot, force = false) => {
     if (!snapshot.location) {
+      return;
+    }
+    if (!force && viewCoversViewport(snapshot, viewRef.current)) {
       return;
     }
     const cx = chunkCoord(snapshot.location.x);
@@ -89,9 +115,13 @@ export function GameShell({
       return;
     }
     setView(data);
-  }, []);
+  }, [viewCoversViewport]);
 
-  const sendCommand = useCallback(async (path: string, body: object): Promise<CommandResponse | null> => {
+  const sendCommand = useCallback(async (
+    path: string,
+    body: object,
+    options?: { refreshChunks?: "ifNeeded" | "always" },
+  ): Promise<CommandResponse | null> => {
     if (pendingRef.current) {
       return null;
     }
@@ -117,7 +147,8 @@ export function GameShell({
         return null;
       }
       setPlayer(data.player);
-      await loadChunks(data.player);
+      const refresh = options?.refreshChunks ?? "ifNeeded";
+      void loadChunks(data.player, refresh === "always");
       return data;
     } catch {
       setFeedback("Command channel failed.");
@@ -130,6 +161,10 @@ export function GameShell({
 
   const move = useCallback(
     async (direction: Direction) => {
+      if (pendingRef.current) {
+        queuedDirection.current = direction;
+        return;
+      }
       const next = await sendCommand("/api/game/move", {
         actionId: newActionId(),
         payload: { direction },
@@ -137,6 +172,11 @@ export function GameShell({
       if (next?.player?.location) {
         const returned = next.player.location.type === "BASE";
         setFeedback(returned ? "Returned to base." : `Moved ${direction}.`);
+      }
+      const queued = queuedDirection.current;
+      queuedDirection.current = null;
+      if (queued) {
+        await move(queued);
       }
     },
     [sendCommand],
@@ -161,13 +201,37 @@ export function GameShell({
       const next = await sendCommand("/api/game/collect", {
         actionId: newActionId(),
         payload: { nodeId },
-      });
+      }, { refreshChunks: "always" });
       if (next?.collected) {
         setFeedback(`Collected ${next.collected.amount} ${next.collected.resource}.`);
+        setView((current) => {
+          if (!current) {
+            return current;
+          }
+          return {
+            ...current,
+            nodes: current.nodes.map((entry) =>
+              entry.id === nodeId ? { ...entry, remaining: 0 } : entry,
+            ),
+          };
+        });
       }
     },
     [sendCommand],
   );
+
+  const gatherNearest = useCallback(async () => {
+    if (!location) {
+      setFeedback("No field location to gather from.");
+      return;
+    }
+    const node = pickGatherNode(view?.nodes ?? [], location, balanceV1.economy.nodes.collectChebyshevRange);
+    if (!node) {
+      setFeedback("Move adjacent to an E or M node, then press G to gather.");
+      return;
+    }
+    await collectNode(node.id);
+  }, [collectNode, location, view?.nodes]);
 
   const upgradeBase = useCallback(async () => {
     const next = await sendCommand("/api/game/upgrade-base", { actionId: newActionId() });
@@ -178,6 +242,16 @@ export function GameShell({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (event.key === "g" || event.key === "G") {
+        event.preventDefault();
+        if (!event.repeat) {
+          void gatherNearest();
+        }
+        return;
+      }
       const direction = KEY_TO_DIRECTION[event.key];
       if (!direction) {
         return;
@@ -187,7 +261,7 @@ export function GameShell({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [move]);
+  }, [gatherNearest, move]);
 
   const radius = balanceV1.movement.viewportRadius;
   const tiles = useMemo(() => {
@@ -320,11 +394,20 @@ export function GameShell({
                 Enter base
               </button>
             ) : null}
+            <button
+              type="button"
+              data-testid="gather-node"
+              onClick={() => void gatherNearest()}
+              disabled={pending || !location}
+              className="min-h-11 border border-[var(--ash-energy)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+            >
+              Gather · G
+            </button>
           </div>
         </aside>
 
         <section className="ash-frame p-4" aria-label="World grid">
-          <p className="ash-label mb-3">Local grid · WASD / arrows · click adjacent tile</p>
+          <p className="ash-label mb-3">Local grid · WASD / arrows move · G gathers adjacent E/M</p>
           <div
             className="ash-world-grid"
             role="grid"
@@ -353,7 +436,7 @@ export function GameShell({
                   className={className}
                   aria-label={label}
                   aria-current={tile.isPlayer ? "true" : undefined}
-                  disabled={pending || !clickable}
+                  disabled={!clickable}
                   data-world-x={tile.x}
                   data-world-y={tile.y}
                   data-adjacent={tile.adjacent ? "true" : "false"}
