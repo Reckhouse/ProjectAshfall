@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getDb } from "@/db/client";
 import { AdminPanel } from "@/components/admin/AdminPanel";
 import { loadAdminStats } from "@/game/services/admin-stats";
+import { maybeTickBotsInBackground } from "@/game/services/bots";
 import { isAdminUser } from "@/lib/auth/admin";
 import { getCurrentAuthUser } from "@/lib/auth/session";
 
@@ -19,6 +20,7 @@ export default async function AdminPage() {
     redirect("/game");
   }
 
+  await maybeTickBotsInBackground(db).catch(() => undefined);
   const stats = await loadAdminStats(db);
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 lg:px-8">

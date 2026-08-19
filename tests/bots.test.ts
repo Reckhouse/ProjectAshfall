@@ -19,6 +19,8 @@ describe("bots and admin stats", () => {
     expect(bot.displayName).toBe("AshBot01");
     expect(bot.difficulty).toBe("SCOUT");
     expect(bot.enabled).toBe(true);
+    expect(bot.lastAction).toMatch(/recruit-defense|depart/);
+    expect(bot.tickCount).toBe(1);
 
     const [player] = await db.select().from(players).where(eq(players.id, bot.playerId));
     expect(player?.kind).toBe("BOT");
@@ -27,6 +29,7 @@ describe("bots and admin stats", () => {
 
     const ticked = await tickEnabledBots(db, { playerId: bot.playerId });
     expect(ticked.ticked[0]?.lastAction).toMatch(/recruit-defense|depart/);
+    expect(ticked.ticked[0]?.tickCount).toBe(1);
     const [profile] = await db.select().from(botProfiles).where(eq(botProfiles.playerId, bot.playerId));
     expect(profile?.tickCount).toBe(1);
     await client.close();
@@ -68,7 +71,7 @@ describe("bots and admin stats", () => {
   it("lets a raider bot leave base with offense on later ticks", async () => {
     const { db, client } = await setupIsolatedGameDb();
     const bot = await spawnBot(db, { callsign: "Raider_1", difficulty: "RAIDER" });
-    await tickEnabledBots(db, { playerId: bot.playerId });
+    expect(bot.lastAction).toMatch(/recruit-defense|recruit-offense|depart/);
     await db.update(botProfiles).set({ lastTickAt: new Date(0) }).where(eq(botProfiles.playerId, bot.playerId));
     await tickEnabledBots(db, { playerId: bot.playerId });
     const stacks = await db.select().from(troopStacks).where(eq(troopStacks.playerId, bot.playerId));

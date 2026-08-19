@@ -198,11 +198,17 @@ export async function spawnBot(
   });
 
   logEvent({ event: "admin.bot.spawned", playerId: player.id, commandType: difficulty });
-  const [created] = (await listBots(db)).filter((bot) => bot.playerId === player.id);
-  if (!created) {
-    throw new GameError("INTERNAL_GAME_ERROR", "Bot record was not found after spawn.", 500);
+  try {
+    return await tickOneBot(db, player.id);
+  } catch (error) {
+    const message = isGameError(error) ? error.code : "INTERNAL_GAME_ERROR";
+    logEvent({ event: "admin.bot.spawn.tick.failed", playerId: player.id, code: message });
+    const [created] = (await listBots(db)).filter((bot) => bot.playerId === player.id);
+    if (!created) {
+      throw new GameError("INTERNAL_GAME_ERROR", "Bot record was not found after spawn.", 500);
+    }
+    return created;
   }
-  return created;
 }
 
 export async function setBotEnabled(db: AppDb, playerId: string, enabled: boolean): Promise<BotView> {
@@ -510,7 +516,7 @@ export async function tickEnabledBots(
     .select({ playerId: botProfiles.playerId })
     .from(botProfiles)
     .where(eq(botProfiles.enabled, true))
-    .orderBy(asc(botProfiles.lastTickAt), asc(botProfiles.createdAt))
+    .orderBy(sql`${botProfiles.lastTickAt} asc nulls first`, asc(botProfiles.createdAt))
     .limit(limit);
 
   const ticked: BotView[] = [];
@@ -540,5 +546,5 @@ export async function maybeTickBotsInBackground(db: AppDb): Promise<void> {
   if (!enabled) {
     return;
   }
-  await tickEnabledBots(db, { limit: 3 });
+  await tickEnabledBots(db, { limit: balanceV1.bots.maxBotsPerTick });
 }
