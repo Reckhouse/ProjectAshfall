@@ -1,9 +1,12 @@
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { GameShell } from "@/components/game/GameShell";
+import { isAdminEmail } from "@/lib/auth/admin";
 import { getCurrentAuthUser } from "@/lib/auth/session";
 import { chunkCoord } from "@/game/world/chunks";
 import { getVisibleChunks } from "@/game/services/chunks";
+import { maybeTickBotsInBackground } from "@/game/services/bots";
 import { ensurePlayerProvisioned } from "@/game/services/provision";
 
 export const dynamic = "force-dynamic";
@@ -24,5 +27,8 @@ export default async function GamePage() {
         radius: 1,
       })
     : null;
-  return <GameShell player={player} initialView={initialView} />;
+  after(() => {
+    void maybeTickBotsInBackground(db).catch(() => undefined);
+  });
+  return <GameShell player={player} initialView={initialView} isAdmin={isAdminEmail(user.email)} />;
 }

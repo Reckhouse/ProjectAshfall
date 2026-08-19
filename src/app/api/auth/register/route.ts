@@ -5,6 +5,9 @@ import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { applySessionCookie, getAuthUserFromRequest, issueSession } from "@/lib/auth/session";
 import { createUserAccount } from "@/lib/auth/service";
 import { registerSchema } from "@/lib/validation/auth";
+import { claimCallsign, isCallsignTaken } from "@/game/services/callsign";
+import { ensurePlayerProvisioned } from "@/game/services/provision";
+import { parseCallsign } from "@/lib/validation/callsign";
 
 export const runtime = "nodejs";
 
@@ -34,8 +37,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const callsign = parsed.data.callsign?.trim() ? parseCallsign(parsed.data.callsign) : null;
+    if (callsign && (await isCallsignTaken(db, callsign))) {
+      throw new GameError("CALLSIGN_TAKEN", "That callsign is already in use.", 409);
+    }
+
     const user = await createUserAccount(db, parsed.data);
     const session = await issueSession(db, user.id);
+    if (callsign) {
+      await ensurePlayerProvisioned(db, user.id);
+      await claimCallsign(db, user.id, callsign);
+    }
     const response = jsonOk({ redirectTo: "/game" }, 201);
     applySessionCookie(response, session.token, session.expiresAt);
     return response;

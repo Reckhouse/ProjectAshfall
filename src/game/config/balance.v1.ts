@@ -130,6 +130,46 @@ export const balanceV1 = {
     metalLootCap: 180,
     minDefensePowerUnits: 1,
   },
+  bots: {
+    maxActive: 40,
+    minTickIntervalMs: 20_000,
+    maxBotsPerTick: 12,
+    difficulties: {
+      SCOUT: {
+        label: "Scout",
+        actionsPerTick: 1,
+        exploreRadius: 6,
+        targetDefense: 4,
+        targetOffense: 2,
+        raidChanceBps: 1200,
+        caveChanceBps: 2800,
+        upgradeChanceBps: 2800,
+        maxDistanceFromBase: 8,
+      },
+      RAIDER: {
+        label: "Raider",
+        actionsPerTick: 2,
+        exploreRadius: 10,
+        targetDefense: 6,
+        targetOffense: 8,
+        raidChanceBps: 5600,
+        caveChanceBps: 5200,
+        upgradeChanceBps: 4800,
+        maxDistanceFromBase: 14,
+      },
+      WARLORD: {
+        label: "Warlord",
+        actionsPerTick: 3,
+        exploreRadius: 16,
+        targetDefense: 12,
+        targetOffense: 14,
+        raidChanceBps: 8200,
+        caveChanceBps: 7000,
+        upgradeChanceBps: 7800,
+        maxDistanceFromBase: 22,
+      },
+    },
+  },
 } as const;
 
 export type BalanceV1 = typeof balanceV1;

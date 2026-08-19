@@ -58,6 +58,8 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
 
   return {
     status: player.status as PlayerSnapshot["status"],
+    kind: (player.kind as PlayerSnapshot["kind"]) || "HUMAN",
+    displayName: player.displayName ?? null,
     world: world?.slug ?? null,
     base: base
       ? {

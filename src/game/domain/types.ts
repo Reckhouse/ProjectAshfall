@@ -1,4 +1,6 @@
 export type PlayerStatus = "PROVISIONING" | "ACTIVE" | "SUSPENDED";
+export type PlayerKind = "HUMAN" | "BOT";
+export type BotDifficulty = "SCOUT" | "RAIDER" | "WARLORD";
 export type WorldStatus = "DRAFT" | "ACTIVE" | "CLOSED";
 export type GameActionStatus = "STARTED" | "COMPLETED" | "FAILED";
 
@@ -39,6 +41,8 @@ export type EquippedTool = {
 
 export type PlayerSnapshot = {
   status: PlayerStatus;
+  kind: PlayerKind;
+  displayName: string | null;
   world: string | null;
   base: {
     x: number;

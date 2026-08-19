@@ -21,6 +21,7 @@ export function RegisterForm() {
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
       confirmPassword: String(form.get("confirmPassword") ?? ""),
+      callsign: String(form.get("callsign") ?? ""),
     };
 
     try {
@@ -66,6 +67,23 @@ export function RegisterForm() {
           required
           className="mt-2 min-h-11 w-full border border-[var(--ash-border)] bg-black/30 px-3 text-[var(--ash-text)]"
         />
+      </div>
+      <div>
+        <label className="ash-label block" htmlFor="callsign">
+          Callsign
+        </label>
+        <input
+          id="callsign"
+          name="callsign"
+          type="text"
+          autoComplete="username"
+          minLength={3}
+          maxLength={16}
+          pattern="[A-Za-z][A-Za-z0-9_]{2,15}"
+          required
+          className="mt-2 min-h-11 w-full border border-[var(--ash-border)] bg-black/30 px-3 text-[var(--ash-text)]"
+        />
+        <p className="mt-1 text-xs text-[var(--ash-muted)]">3–16 characters. Shown on your base.</p>
       </div>
       <div>
         <label className="ash-label block" htmlFor="password">

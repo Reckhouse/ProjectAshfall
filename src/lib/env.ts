@@ -9,7 +9,11 @@ const envSchema = z.object({
   WORLD_SEED: z.string().min(8).optional(),
   NEXT_PHASE: z.string().optional(),
   VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
+  ADMIN_EMAILS: z.string().optional(),
+  CRON_SECRET: z.string().optional(),
 });
+
+const DEFAULT_ADMIN_EMAIL = "mthrun@uccs.edu";
 
 export type ServerEnv = {
   nodeEnv: "development" | "test" | "production";
@@ -17,9 +21,25 @@ export type ServerEnv = {
   authSecret: string;
   appOrigin: string;
   worldSeed: string;
+  adminEmails: string[];
+  cronSecret: string | null;
   isPglite: boolean;
   isNeon: boolean;
 };
+
+function parseAdminEmails(raw: string | undefined, nodeEnv: ServerEnv["nodeEnv"]): string[] {
+  const listed = (raw ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+  if (listed.length > 0) {
+    return [...new Set(listed)];
+  }
+  if (nodeEnv === "test") {
+    return [];
+  }
+  return [DEFAULT_ADMIN_EMAIL];
+}
 
 function defaultDatabaseUrl(): string {
   return "pglite:.data/ashfall.db";
@@ -71,6 +91,9 @@ export function getServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEnv
     authSecret: resolveAuthSecret(nodeEnv, parsed.data.AUTH_SECRET, source),
     appOrigin: parsed.data.APP_ORIGIN ?? "http://localhost:3000",
     worldSeed: parsed.data.WORLD_SEED ?? "ashfall-world-seed-v1-server-only",
+    adminEmails: parseAdminEmails(parsed.data.ADMIN_EMAILS, nodeEnv),
+    cronSecret:
+      parsed.data.CRON_SECRET && parsed.data.CRON_SECRET.length >= 16 ? parsed.data.CRON_SECRET : null,
     isPglite,
     isNeon,
   };

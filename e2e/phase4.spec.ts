@@ -1,16 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { registerCommander } from "./helpers";
 
 test("first upgrade stays cheap and later upgrades cost more Metal", async ({ page }) => {
-  const email = `caves-${Date.now()}@ashfall.test`;
-  const password = "password1";
-
-  await page.goto("/register");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password").fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
-
-  await expect(page).toHaveURL(/\/game/);
+  await registerCommander(page, `caves-${Date.now()}@ashfall.test`);
   await expect(page.getByTestId("base-level")).toHaveText("1");
   await expect(page.getByTestId("energy-tool")).toHaveText("NONE");
   await expect(page.getByTestId("metal-tool")).toHaveText("NONE");

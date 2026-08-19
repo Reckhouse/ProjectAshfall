@@ -75,6 +75,8 @@ export async function getVisibleChunks(
       y: bases.y,
       playerId: bases.playerId,
       ownerCreatedAt: players.createdAt,
+      ownerKind: players.kind,
+      displayName: players.displayName,
     })
     .from(bases)
     .innerJoin(players, eq(players.id, bases.playerId))
@@ -114,7 +116,11 @@ export async function getVisibleChunks(
       x: base.x,
       y: base.y,
       owned: base.playerId === player.id,
-      protected: base.playerId !== player.id && isNewPlayerProtected(base.ownerCreatedAt),
+      displayName: base.displayName,
+      kind: (base.ownerKind === "BOT" ? "BOT" : "HUMAN") as "HUMAN" | "BOT",
+      protected:
+        base.playerId !== player.id &&
+        isNewPlayerProtected(base.ownerCreatedAt, new Date(), base.ownerKind === "BOT" ? "BOT" : "HUMAN"),
     })),
     nodes: nodes.map((node) => ({
       id: node.id,

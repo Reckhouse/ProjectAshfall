@@ -25,7 +25,14 @@ export type RaidResult = {
   target: { baseId: string; x: number; y: number };
 };
 
-export function isNewPlayerProtected(createdAt: Date, now = new Date()): boolean {
+export function isNewPlayerProtected(
+  createdAt: Date,
+  now = new Date(),
+  kind: "HUMAN" | "BOT" = "HUMAN",
+): boolean {
+  if (kind === "BOT") {
+    return false;
+  }
   return now.getTime() - createdAt.getTime() < balanceV1.pvp.newPlayerProtectionMs;
 }
 
@@ -103,11 +110,12 @@ export async function raidBase(
       if (chebyshevDistance({ x: attacker.x, y: attacker.y }, { x: targetBase.x, y: targetBase.y }) > balanceV1.pvp.raidChebyshevRange) {
         throw new GameError("TARGET_OUT_OF_RANGE", "Move adjacent to that base to raid it.", 400);
       }
-      if (isNewPlayerProtected(defender.createdAt)) {
+
+      const now = new Date();
+      if (isNewPlayerProtected(defender.createdAt, now, defender.kind === "BOT" ? "BOT" : "HUMAN")) {
         throw new GameError("BASE_PROTECTED", "That commander is still under new-player protection.", 400);
       }
 
-      const now = new Date();
       const [cooldown] = await tx
         .select()
         .from(raidCooldowns)

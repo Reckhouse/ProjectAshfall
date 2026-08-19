@@ -1,20 +1,21 @@
 import { expect, test } from "@playwright/test";
+import { fillRegisterForm, uniqueCallsign } from "./helpers";
 
 test("register provisions a base that survives refresh, logout, and login", async ({ page }) => {
   const email = `commander-${Date.now()}@ashfall.test`;
   const password = "password1";
+  const callsign = uniqueCallsign("Cmd");
 
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "PROJECT ASHFALL" })).toBeVisible();
   await page.getByRole("link", { name: "Create account" }).click();
 
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password").fill(password);
+  await fillRegisterForm(page, { email, password, callsign });
   await page.getByRole("button", { name: "Create account" }).click();
 
   await expect(page).toHaveURL(/\/game/);
   await expect(page.getByText("ESTABLISHED")).toBeVisible();
+  await expect(page.getByTestId("player-callsign")).toHaveText(callsign);
   await expect(page.getByText("ASHFALL-01")).toBeVisible();
   const coordinate = page.getByTestId("base-coord");
   await expect(coordinate).toHaveText(/^\d+, \d+$/);

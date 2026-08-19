@@ -19,6 +19,8 @@ export const GAME_ERROR_CODES = [
   "INVALID_CREDENTIALS",
   "ACCOUNT_CREATE_FAILED",
   "VALIDATION_ERROR",
+  "ADMIN_REQUIRED",
+  "CALLSIGN_TAKEN",
 ] as const;
 
 export type GameErrorCode = (typeof GAME_ERROR_CODES)[number];

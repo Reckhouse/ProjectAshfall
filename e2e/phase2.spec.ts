@@ -1,16 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { registerCommander } from "./helpers";
 
 test("leave base, move, refresh the same coordinate, and return", async ({ page }) => {
-  const email = `grid-${Date.now()}@ashfall.test`;
-  const password = "password1";
-
-  await page.goto("/register");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password", { exact: true }).fill(password);
-  await page.getByLabel("Confirm password").fill(password);
-  await page.getByRole("button", { name: "Create account" }).click();
-
-  await expect(page).toHaveURL(/\/game/);
+  await registerCommander(page, `grid-${Date.now()}@ashfall.test`);
   await expect(page.getByTestId("location-type")).toHaveText("BASE");
   await expect(page.getByTestId("world-grid")).toBeVisible();
 

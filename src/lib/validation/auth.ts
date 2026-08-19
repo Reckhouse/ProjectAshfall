@@ -15,6 +15,7 @@ export const registerSchema = z
     email: emailSchema,
     password: passwordSchema,
     confirmPassword: z.string(),
+    callsign: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Passwords do not match.",

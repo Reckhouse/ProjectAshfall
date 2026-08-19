@@ -184,7 +184,9 @@ async function runLocationCommand(
         return replayed;
       }
 
-      assertMoveInterval(ctx.player.lastMoveAt);
+      if (ctx.player.kind !== "BOT") {
+        assertMoveInterval(ctx.player.lastMoveAt);
+      }
       await startAction(tx, {
         playerId: ctx.player.id,
         actionKey: input.actionId,

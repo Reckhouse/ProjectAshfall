@@ -10,6 +10,7 @@ import { pickGatherCave } from "@/game/world/caves";
 import { baseUpgradeMetalCost, chebyshevDistance, pickGatherNode, storageUpgradeMetalCost } from "@/game/world/nodes";
 import { LogoutButton } from "@/components/game/LogoutButton";
 import { TileStage } from "@/components/game/TileStage";
+import Link from "next/link";
 import {
   resolveTileArt,
   resolveTileFeature,
@@ -86,6 +87,16 @@ function terrainAt(view: VisibleWorldView | null, x: number, y: number): Terrain
   return null;
 }
 
+function ownerLabel(base: { displayName?: string | null; owned?: boolean } | null | undefined, fallback: string): string {
+  if (!base) {
+    return fallback;
+  }
+  if (base.owned) {
+    return base.displayName ? `Your bunker · ${base.displayName}` : "Your bunker";
+  }
+  return base.displayName ? `${base.displayName}'s bunker` : "Unknown commander";
+}
+
 function sceneAt(
   view: VisibleWorldView | null,
   player: PlayerSnapshot,
@@ -94,7 +105,8 @@ function sceneAt(
   pin?: { nodeType?: ResourceKind | null; cave?: boolean; base?: boolean },
 ): TileStageView {
   const ownBase = Boolean(pin?.base || (player.base && player.base.x === x && player.base.y === y));
-  const otherBase = Boolean(view?.bases.some((base) => base.x === x && base.y === y && !base.owned));
+  const other = view?.bases.find((base) => base.x === x && base.y === y && !base.owned) ?? null;
+  const otherBase = Boolean(other);
   const liveNode = view?.nodes.find((entry) => entry.x === x && entry.y === y && entry.remaining > 0) ?? null;
   const liveCave = view?.caves?.find((entry) => entry.x === x && entry.y === y && !entry.cleared) ?? null;
   const liveNodeType: ResourceKind | null =
@@ -109,9 +121,14 @@ function sceneAt(
     }),
   );
   const standingHere = player.location?.x === x && player.location?.y === y;
+  const heading = ownBase
+    ? ownerLabel({ displayName: player.displayName, owned: true }, TILE_ART[art].heading)
+    : other
+      ? ownerLabel(other, TILE_ART[art].heading)
+      : TILE_ART[art].heading;
   return {
     art,
-    heading: TILE_ART[art].heading,
+    heading,
     detail: tileDetail(x, y, standingHere ? player.location?.type : null),
   };
 }
@@ -119,9 +136,11 @@ function sceneAt(
 export function GameShell({
   player: initialPlayer,
   initialView,
+  isAdmin = false,
 }: {
   player: PlayerSnapshot;
   initialView: VisibleWorldView | null;
+  isAdmin?: boolean;
 }) {
   const [player, setPlayer] = useState(initialPlayer);
   const [view, setView] = useState<VisibleWorldView | null>(initialView);
@@ -134,6 +153,7 @@ export function GameShell({
     return sceneAt(initialView, initialPlayer, loc.x, loc.y);
   });
   const [pending, setPending] = useState(false);
+  const [callsignDraft, setCallsignDraft] = useState("");
   const lastCommandAt = useRef(0);
   const pendingRef = useRef(false);
   const queuedDirection = useRef<Direction | null>(null);
@@ -239,6 +259,13 @@ export function GameShell({
       setPending(false);
     }
   }, [announce, loadChunks]);
+
+  const claimCallsign = useCallback(async () => {
+    const next = await sendCommand("/api/game/callsign", { callsign: callsignDraft.trim() });
+    if (next?.player?.displayName) {
+      announce(`Callsign locked: ${next.player.displayName}.`);
+    }
+  }, [announce, callsignDraft, sendCommand]);
 
   const move = useCallback(
     async (direction: Direction) => {
@@ -527,6 +554,7 @@ export function GameShell({
           otherBase: Boolean(other),
           otherBaseId: other?.id ?? null,
           otherProtected: Boolean(other?.protected),
+          otherDisplayName: other?.displayName ?? null,
           passable,
           isPlayer: dx === 0 && dy === 0,
           node,
@@ -564,12 +592,64 @@ export function GameShell({
           <p className="ash-label">Command shell</p>
           <h1 className="mt-2 text-3xl font-semibold text-[var(--ash-beige)]">PROJECT ASHFALL</h1>
         </div>
-        <LogoutButton />
+        <div className="flex items-center gap-3">
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              data-testid="admin-link"
+              className="min-h-11 border border-[var(--ash-border)] px-4 py-2 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)]"
+            >
+              Admin
+            </Link>
+          ) : null}
+          <LogoutButton />
+        </div>
       </header>
+
+      {!player.displayName ? (
+        <section className="ash-frame mt-6 p-5" data-testid="callsign-prompt">
+          <p className="ash-label">Claim callsign</p>
+          <p className="mt-2 text-sm text-[var(--ash-muted)]">
+            Choose a name so nearby bunkers show who holds this base.
+          </p>
+          <form
+            className="mt-4 flex flex-wrap gap-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void claimCallsign();
+            }}
+          >
+            <input
+              value={callsignDraft}
+              onChange={(event) => setCallsignDraft(event.target.value)}
+              minLength={3}
+              maxLength={16}
+              pattern="[A-Za-z][A-Za-z0-9_]{2,15}"
+              required
+              placeholder="Callsign"
+              data-testid="callsign-input"
+              className="min-h-11 min-w-48 border border-[var(--ash-border)] bg-black/30 px-3 text-[var(--ash-text)]"
+            />
+            <button
+              type="submit"
+              disabled={pending}
+              data-testid="callsign-submit"
+              className="min-h-11 border border-[var(--ash-rust)] px-4 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+            >
+              Lock callsign
+            </button>
+          </form>
+        </section>
+      ) : null}
 
       <section className="mt-6 grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)_minmax(14.5rem,16rem)] lg:items-start">
         <aside className="ash-frame space-y-4 p-5" aria-label="Base status">
           <StatusRow label="Base status" value={player.base ? "ESTABLISHED" : "PENDING"} />
+          <StatusRow
+            label="Callsign"
+            value={player.displayName ?? "UNCLAIMED"}
+            testId="player-callsign"
+          />
           <StatusRow label="World" value={(player.world ?? "UNKNOWN").toUpperCase()} />
           <StatusRow
             label="Base"
@@ -780,7 +860,7 @@ export function GameShell({
               ]
                 .filter(Boolean)
                 .join(" ");
-              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}${tile.cave ? " cave" : ""}`;
+              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}${tile.cave ? " cave" : ""}${tile.ownBase ? ` ${player.displayName ?? "your base"}` : ""}${tile.otherDisplayName ? ` ${tile.otherDisplayName}` : tile.otherBase ? " unknown commander" : ""}`;
               const clickable = Boolean(
                 tile.adjacent ||
                   (tile.node && tile.collectRange) ||
@@ -831,6 +911,19 @@ export function GameShell({
           <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[var(--ash-muted)]">
             WASD / arrows move · G gathers · C caves · R raids
           </p>
+          {(view?.bases ?? []).some((base) => !base.owned) ? (
+            <ul className="mt-3 space-y-1 font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[var(--ash-muted)]" data-testid="visible-bases">
+              {(view?.bases ?? [])
+                .filter((base) => !base.owned)
+                .map((base) => (
+                  <li key={base.id}>
+                    {base.x}, {base.y} · {base.displayName ?? "Unnamed"}
+                    {base.kind === "BOT" ? " · bot" : ""}
+                    {base.protected ? " · protected" : ""}
+                  </li>
+                ))}
+            </ul>
+          ) : null}
         </section>
       </section>
     </main>

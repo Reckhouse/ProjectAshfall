@@ -102,6 +102,8 @@ export const players = pgTable(
     authUserId: text("auth_user_id").notNull().unique(),
     status: text("status").notNull(),
     worldId: uuid("world_id").references(() => worlds.id),
+    displayName: text("display_name"),
+    kind: text("kind").notNull().default("HUMAN"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -117,7 +119,9 @@ export const players = pgTable(
   (table) => [
     check("players_status_check", sql`${table.status} in ('PROVISIONING', 'ACTIVE', 'SUSPENDED')`),
     check("players_location_type_check", sql`${table.locationType} in ('BASE', 'FIELD')`),
+    check("players_kind_check", sql`${table.kind} in ('HUMAN', 'BOT')`),
     index("players_world_coord_idx").on(table.worldId, table.x, table.y),
+    index("players_kind_idx").on(table.kind),
   ],
 );
 
@@ -392,6 +396,32 @@ export const battleReports = pgTable(
         and ${table.energyLooted} >= 0 and ${table.metalLooted} >= 0`,
     ),
     index("battle_reports_player_idx").on(table.playerId),
+  ],
+);
+
+export const botProfiles = pgTable(
+  "bot_profiles",
+  {
+    playerId: uuid("player_id")
+      .primaryKey()
+      .references(() => players.id, { onDelete: "cascade" }),
+    difficulty: text("difficulty").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    lastTickAt: timestamp("last_tick_at", { withTimezone: true, mode: "date" }),
+    lastAction: text("last_action"),
+    lastError: text("last_error"),
+    tickCount: integer("tick_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("bot_profiles_difficulty_check", sql`${table.difficulty} in ('SCOUT', 'RAIDER', 'WARLORD')`),
+    check("bot_profiles_tick_count_check", sql`${table.tickCount} >= 0`),
+    index("bot_profiles_enabled_idx").on(table.enabled, table.lastTickAt),
   ],
 );
 
