@@ -517,3 +517,56 @@ export const allianceInvites = pgTable(
     index("alliance_invites_to_idx").on(table.toPlayerId, table.status),
   ],
 );
+
+export const mailMessages = pgTable(
+  "mail_messages",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    worldId: uuid("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    kind: text("kind").notNull(),
+    fromPlayerId: uuid("from_player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    toPlayerId: uuid("to_player_id").references(() => players.id, { onDelete: "cascade" }),
+    allianceId: uuid("alliance_id").references(() => alliances.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("mail_messages_kind_check", sql`${table.kind} in ('DIRECT', 'ALLIANCE')`),
+    check(
+      "mail_messages_target_check",
+      sql`(
+        (${table.kind} = 'DIRECT' AND ${table.toPlayerId} IS NOT NULL AND ${table.allianceId} IS NULL) OR
+        (${table.kind} = 'ALLIANCE' AND ${table.toPlayerId} IS NULL AND ${table.allianceId} IS NOT NULL)
+      )`,
+    ),
+    index("mail_messages_from_idx").on(table.fromPlayerId, table.createdAt),
+    index("mail_messages_to_idx").on(table.toPlayerId, table.createdAt),
+    index("mail_messages_alliance_idx").on(table.allianceId, table.createdAt),
+  ],
+);
+
+export const mailReceipts = pgTable(
+  "mail_receipts",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => mailMessages.id, { onDelete: "cascade" }),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true, mode: "date" }),
+  },
+  (table) => [
+    unique("mail_receipts_pk").on(table.messageId, table.playerId),
+    index("mail_receipts_player_unread_idx")
+      .on(table.playerId)
+      .where(sql`${table.readAt} IS NULL`),
+    index("mail_receipts_player_idx").on(table.playerId),
+  ],
+);

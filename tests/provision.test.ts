@@ -42,6 +42,7 @@ describe("player provisioning", () => {
     });
     expect(snapshot.expedition).toBeNull();
     expect(snapshot.alliance).toBeNull();
+    expect(snapshot.unreadMail).toBe(0);
 
     const playerRows = await db.select().from(players);
     const baseRows = await db.select().from(bases);

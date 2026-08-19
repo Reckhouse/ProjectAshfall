@@ -142,6 +142,27 @@ Invite and kick identify the other commander by callsign. The client never submi
 
 Visible chunk bases may include `allianceTag` and `allied`. They must not include another commander's `allianceId`, inventory, or coordinates beyond the bunker already shown on the map.
 
+## Mail commands
+
+```http
+GET /api/game/mail
+POST /api/game/mail
+POST /api/game/mail/read
+```
+
+Send input:
+
+```json
+{
+  "actionId": "uuid",
+  "payload": { "toCallsign": "AshBravo", "body": "Hold the south ridge." }
+}
+```
+
+or `{ "channel": "ALLIANCE", "body": "Muster at first light." }`.
+
+The client never submits `fromPlayerId`, `toPlayerId`, or unread counts. Inbox rows expose callsigns and alliance tags only.
+
 ## DTO principle
 
 Return only data necessary for the player UI.

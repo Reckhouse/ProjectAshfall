@@ -137,6 +137,11 @@ export const balanceV1 = {
     nameMin: 3,
     nameMax: 24,
   },
+  mail: {
+    bodyMin: 1,
+    bodyMax: 280,
+    inboxLimit: 50,
+  },
   rankings: {
     boardLimit: 25,
     intelLimit: 12,

@@ -8,6 +8,7 @@ import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
 import { applyPassiveAccrual } from "@/game/services/accrual";
 import { getAllianceSummary } from "@/game/services/alliances";
+import { countUnreadMail } from "@/game/services/mail";
 import { allocateBaseSpawn } from "@/game/services/spawn";
 import { ensureStartingTroops, loadTroopSnapshot } from "@/game/services/troop-state";
 import { productionRates, storageCaps } from "@/game/world/nodes";
@@ -57,12 +58,14 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
   const metalTool = equippedTools.find((tool) => tool.equippedSlot === "METAL");
   const troopView = await loadTroopSnapshot(tx, player.id);
   const alliance = await getAllianceSummary(tx, player.id);
+  const unreadMail = await countUnreadMail(tx, player.id);
 
   return {
     status: player.status as PlayerSnapshot["status"],
     kind: (player.kind as PlayerSnapshot["kind"]) || "HUMAN",
     displayName: player.displayName ?? null,
     alliance,
+    unreadMail,
     world: world?.slug ?? null,
     base: base
       ? {

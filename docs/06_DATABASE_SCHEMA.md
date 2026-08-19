@@ -256,6 +256,31 @@ created_at
 Constraints:
 - unique pending invite per `(alliance_id, to_player_id)`
 
+## `mail_messages`
+
+```text
+id
+world_id
+kind                 DIRECT | ALLIANCE
+from_player_id
+to_player_id         required for DIRECT
+alliance_id          required for ALLIANCE
+body
+created_at
+```
+
+## `mail_receipts`
+
+```text
+message_id
+player_id
+read_at              null until the recipient marks it
+```
+
+Constraints:
+- primary key `(message_id, player_id)`
+- inbox visibility is receipt-owned; the client cannot invent recipients
+
 ## Atomic resource spending
 
 Bad:

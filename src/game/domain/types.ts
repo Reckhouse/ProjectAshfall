@@ -100,11 +100,31 @@ export type WorldStandings = {
   intel: RaidIntel[];
 };
 
+export type MailKind = "DIRECT" | "ALLIANCE";
+
+export type MailItem = {
+  id: string;
+  kind: MailKind;
+  fromCallsign: string;
+  allianceTag: string | null;
+  body: string;
+  createdAt: string;
+  read: boolean;
+  you: boolean;
+};
+
+export type MailDesk = {
+  unreadCount: number;
+  canPostAlliance: boolean;
+  inbox: MailItem[];
+};
+
 export type PlayerSnapshot = {
   status: PlayerStatus;
   kind: PlayerKind;
   displayName: string | null;
   alliance: AllianceSummary | null;
+  unreadMail: number;
   world: string | null;
   base: {
     x: number;

@@ -30,6 +30,7 @@
 - loot
 - spawn legality
 - alliance membership and tags
+- mail inbox and unread state
 
 ## Command pattern
 

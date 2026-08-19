@@ -618,6 +618,13 @@ export function GameShell({
         </div>
         <div className="flex items-center gap-3">
           <Link
+            href="/mail"
+            data-testid="mail-link"
+            className="min-h-11 border border-[var(--ash-border)] px-4 py-2 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)]"
+          >
+            Mail{player.unreadMail > 0 ? ` · ${player.unreadMail}` : ""}
+          </Link>
+          <Link
             href="/alliance"
             data-testid="alliance-link"
             className="min-h-11 border border-[var(--ash-border)] px-4 py-2 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)]"
@@ -695,6 +702,11 @@ export function GameShell({
             label="Alliance"
             value={player.alliance ? `[${player.alliance.tag}]` : "NONE"}
             testId="player-alliance"
+          />
+          <StatusRow
+            label="Mail"
+            value={player.unreadMail > 0 ? String(player.unreadMail) : "NONE"}
+            testId="mail-unread"
           />
           <StatusRow
             label="World rank"

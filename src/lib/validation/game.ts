@@ -38,6 +38,11 @@ export const CLIENT_OWNED_STATE_KEYS = [
   "caveClears",
   "allianceId",
   "role",
+  "fromPlayerId",
+  "toPlayerId",
+  "unreadCount",
+  "unreadMail",
+  "readAt",
 ] as const;
 
 export function rejectClientOwnedState(body: unknown): void {
@@ -177,6 +182,33 @@ export const kickAllianceCommandSchema = z
     payload: z
       .object({
         callsign: z.string(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const sendMailCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        body: z.string(),
+        toCallsign: z.string().optional(),
+        channel: z.enum(["ALLIANCE"]).optional(),
+      })
+      .strict()
+      .refine((payload) => Boolean(payload.toCallsign) !== Boolean(payload.channel), {
+        message: "Send either a direct message or an alliance circular.",
+      }),
+  })
+  .strict();
+
+export const readMailCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        messageId: z.uuid(),
       })
       .strict(),
   })

@@ -147,3 +147,18 @@ Out of scope for this slice:
 - seasons / world resets
 - events
 - trading or shared alliance inventories
+
+## Phase 10 — Commander mail
+
+Delivered:
+- send a dispatch to another named commander by callsign
+- post a circular to current alliance members
+- server-owned inbox with unread counts in the command shell
+- mark-read is session-derived; the client never submits player IDs
+- humans only; bots neither send nor receive
+- no live chat, websockets, or presence
+
+Out of scope for this slice:
+- seasons / world resets
+- events
+- trading or shared alliance inventories

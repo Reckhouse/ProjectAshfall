@@ -25,6 +25,7 @@ export const GAME_ERROR_CODES = [
   "ALLIANCE_FULL",
   "ALLIED_TARGET",
   "NOT_ALLIANCE_LEADER",
+  "NOT_IN_ALLIANCE",
 ] as const;
 
 export type GameErrorCode = (typeof GAME_ERROR_CODES)[number];
