@@ -37,6 +37,7 @@ export type ExpeditionStatus = "ACTIVE" | "RETURNED";
 export type EquippedTool = {
   tier: number;
   bonusBps: number;
+  count: number;
 };
 
 export type AllianceRole = "LEADER" | "MEMBER";

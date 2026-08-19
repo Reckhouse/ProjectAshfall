@@ -813,7 +813,7 @@ export function GameShell({
               ]
                 .filter(Boolean)
                 .join(" ");
-              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}${tile.cave ? " cave" : ""}${tile.ownBase ? ` ${player.displayName ?? "your base"}` : ""}${tile.otherAllianceTag ? ` [${tile.otherAllianceTag}]` : ""}${tile.otherDisplayName ? ` ${tile.otherDisplayName}` : tile.otherBase ? " unknown commander" : ""}${tile.otherAllied ? " allied" : ""}`;
+              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}${tile.cave ? ` cave T${tile.cave.tier}` : ""}${tile.ownBase ? ` ${player.displayName ?? "your base"}` : ""}${tile.otherAllianceTag ? ` [${tile.otherAllianceTag}]` : ""}${tile.otherDisplayName ? ` ${tile.otherDisplayName}` : tile.otherBase ? " unknown commander" : ""}${tile.otherAllied ? " allied" : ""}`;
               const clickable = Boolean(
                 tile.adjacent ||
                   (tile.node && tile.collectRange) ||
@@ -850,7 +850,7 @@ export function GameShell({
                         ? "E"
                         : "M"
                       : tile.cave
-                        ? "C"
+                        ? `C${tile.cave.tier}`
                         : tile.ownBase
                           ? "⌂"
                           : tile.otherBase
@@ -1018,11 +1018,12 @@ export function GameShell({
   );
 }
 
-function formatTool(tool: { tier: number; bonusBps: number } | null): string {
+function formatTool(tool: { tier: number; bonusBps: number; count: number } | null): string {
   if (!tool) {
     return "NONE";
   }
-  return `T${tool.tier} +${Math.round(tool.bonusBps / 100)}%`;
+  const stack = tool.count > 1 ? ` x${tool.count}` : "";
+  return `T${tool.tier}${stack} +${Math.round(tool.bonusBps / 100)}%`;
 }
 
 function StatusRow({

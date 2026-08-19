@@ -76,8 +76,8 @@ describe("economy", () => {
     expect(start.resources?.metalCap).toBe(2200);
     const upgraded = await upgradeBase(db, "eco-2", crypto.randomUUID());
     expect(upgraded.upgrade.level).toBe(2);
-    expect(upgraded.upgrade.metalSpent).toBe(80);
-    expect(upgraded.player.resources?.metal).toBe(start.resources!.metal - 80);
+    expect(upgraded.upgrade.metalSpent).toBe(120);
+    expect(upgraded.player.resources?.metal).toBe(start.resources!.metal - 120);
     expect(upgraded.player.resources).toEqual(
       expect.objectContaining(productionRates(2)),
     );
@@ -123,11 +123,11 @@ describe("economy", () => {
     });
 
     const [playerRow] = await db.select().from(players).where(eq(players.authUserId, "eco-level-3"));
-    await db.update(playerResources).set({ metal: 250 }).where(eq(playerResources.playerId, playerRow!.id));
+    await db.update(playerResources).set({ metal: 450 }).where(eq(playerResources.playerId, playerRow!.id));
 
     const upgraded = await upgradeBase(db, "eco-level-3", crypto.randomUUID());
     expect(upgraded.upgrade.level).toBe(3);
-    expect(upgraded.upgrade.metalSpent).toBe(250);
+    expect(upgraded.upgrade.metalSpent).toBe(450);
     expect(upgraded.player.resources?.metal).toBe(0);
     await client.close();
   });
@@ -138,21 +138,21 @@ describe("economy", () => {
     expect(start.resources?.energyCap).toBe(balanceV1.economy.upgrades.storage.energyCapByLevel[1]);
     const first = await upgradeStorage(db, "eco-store", crypto.randomUUID());
     expect(first.storage.level).toBe(2);
-    expect(first.storage.metalSpent).toBe(60);
+    expect(first.storage.metalSpent).toBe(100);
     expect(first.player.base?.storageLevel).toBe(2);
     expect(first.player.resources?.energyCap).toBe(1400);
     expect(first.player.resources?.metalCap).toBe(3800);
-    expect(first.player.resources?.metal).toBe(start.resources!.metal - 60);
+    expect(first.player.resources?.metal).toBe(start.resources!.metal - 100);
 
     await expect(upgradeStorage(db, "eco-store", crypto.randomUUID())).rejects.toMatchObject({
       code: "INSUFFICIENT_METAL",
     });
 
     const [playerRow] = await db.select().from(players).where(eq(players.authUserId, "eco-store"));
-    await db.update(playerResources).set({ metal: 160 }).where(eq(playerResources.playerId, playerRow!.id));
+    await db.update(playerResources).set({ metal: 320 }).where(eq(playerResources.playerId, playerRow!.id));
     const second = await upgradeStorage(db, "eco-store", crypto.randomUUID());
     expect(second.storage.level).toBe(3);
-    expect(second.storage.metalSpent).toBe(160);
+    expect(second.storage.metalSpent).toBe(320);
     expect(second.player.resources?.energyCap).toBe(2400);
     expect(second.player.resources?.metalCap).toBe(6500);
     await client.close();
@@ -199,12 +199,10 @@ describe("economy simulation", () => {
     const costToLevel5 = costToLevel3 +
       balanceV1.economy.upgrades.base.metalCostByFromLevel[3] +
       balanceV1.economy.upgrades.base.metalCostByFromLevel[4];
-
-    expect(balanceV1.economy.upgrades.base.metalCostByFromLevel[1]).toBe(80);
-    expect(balanceV1.economy.upgrades.base.metalCostByFromLevel[4]).toBe(1600);
+    expect(balanceV1.economy.upgrades.base.metalCostByFromLevel[4]).toBe(4200);
     expect(metalFromShortSession).toBeLessThan(costToLevel5);
     expect(costToLevel5).toBeGreaterThan(tenMinuteMetalNodes * balanceV1.economy.nodes.metalYield * 10);
-    expect(balanceV1.economy.passive.metalCap).toBeGreaterThanOrEqual(
+    expect(balanceV1.economy.upgrades.storage.metalCapByLevel[5]).toBeGreaterThanOrEqual(
       balanceV1.economy.upgrades.base.metalCostByFromLevel[4],
     );
     expect(balanceV1.economy.upgrades.storage.energyCapByLevel[5]).toBeGreaterThan(

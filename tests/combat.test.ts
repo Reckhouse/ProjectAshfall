@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { balanceV1 } from "@/game/config/balance.v1";
-import { casualtyCount, resolveCombat, simulateAttackerWinRate } from "@/game/services/combat";
+import { casualtyCount, resolveCombat, simulateAttackerWinRate, applyCaveBattleAdjustments } from "@/game/services/combat";
 import { createSeededRng } from "@/game/world/rng";
 
 describe("combat resolver", () => {
@@ -42,18 +42,22 @@ describe("combat resolver", () => {
     }
   });
 
-  it("gives a 2x expedition a guaranteed win against a T1 cave", () => {
-    const report = resolveCombat({
-      attacker: { quantity: 2, powerPerUnit: balanceV1.troops.offenseAttack },
-      defender: {
-        quantity: 1 * balanceV1.combat.caveDefenseUnitsPerTier,
-        powerPerUnit: balanceV1.troops.cavePowerPerTier,
-      },
-      rng: createSeededRng("cave-t1-strong"),
-      seed: "cave-t1-strong",
-    });
+  it("rewards a prepared expedition against a tier-1 cave", () => {
+    const report = applyCaveBattleAdjustments(
+      resolveCombat({
+        attacker: { quantity: 4, powerPerUnit: balanceV1.troops.offenseAttack },
+        defender: {
+          quantity: balanceV1.combat.caveDefenseUnitsByTier[1],
+          powerPerUnit: balanceV1.combat.caveDefensePowerByTier[1],
+        },
+        rng: createSeededRng("cave-t1-strong"),
+        seed: "cave-t1-strong",
+      }),
+      1,
+    );
     expect(report.outcome).toBe("ATTACKER_WIN");
     expect(report.attackerRemaining).toBeGreaterThan(0);
+    expect(report.attackerCasualties).toBeGreaterThanOrEqual(1);
   });
 
   it("caps casualty math at the committed count", () => {

@@ -5,6 +5,18 @@ import { chebyshevDistance, nodeCandidateAt } from "@/game/world/nodes";
 import { derivedTileNoise } from "@/game/world/rng";
 import { isPassable, isReserved } from "@/game/world/terrain";
 
+export function caveTierFromRoll(roll: number): number {
+  const weights = balanceV1.economy.caves.tierWeightBps;
+  let cumulative = 0;
+  for (let index = 0; index < weights.length; index += 1) {
+    cumulative += weights[index]!;
+    if (roll < cumulative) {
+      return index + 1;
+    }
+  }
+  return balanceV1.economy.caves.starterTier;
+}
+
 export type CaveCandidate = {
   x: number;
   y: number;
@@ -21,12 +33,13 @@ export function caveCandidateAt(world: WorldView, x: number, y: number): CaveCan
   if (roll >= balanceV1.economy.caves.perThousandTiles) {
     return null;
   }
+  const tierRoll = derivedTileNoise(world.seed, world.generationVersion, x + 12_000, y + 12_000) % 10_000;
   return {
     x,
     y,
     chunkX: chunkCoord(x),
     chunkY: chunkCoord(y),
-    tier: balanceV1.economy.caves.starterTier,
+    tier: caveTierFromRoll(tierRoll),
   };
 }
 
