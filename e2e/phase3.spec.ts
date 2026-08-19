@@ -10,9 +10,9 @@ test("upgrade spends server Metal and persists after refresh", async ({ page }) 
 
   await page.getByTestId("upgrade-base").click();
   await expect(page.getByTestId("base-level")).toHaveText("2");
-  await expect(page.getByTestId("metal-stock")).toContainText("70 /");
+  await expect(page.getByTestId("metal-stock")).toContainText("30 /");
 
   await page.reload();
   await expect(page.getByTestId("base-level")).toHaveText("2");
-  await expect(page.getByTestId("metal-stock")).toContainText("70 /");
+  await expect(page.getByTestId("metal-stock")).toContainText("30 /");
 });
