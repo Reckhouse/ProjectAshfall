@@ -5,6 +5,7 @@ import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError, isGameError, type GameErrorCode } from "@/game/domain/errors";
 import type { Direction, PlayerSnapshot, WorldView } from "@/game/domain/types";
 import { loadSnapshot } from "@/game/services/provision";
+import { closeActiveExpedition, ensureStartingTroops, openExpedition } from "@/game/services/troop-state";
 import { DIRECTIONS, offsetCoordinate } from "@/game/world/directions";
 import { isInWorldBounds, isPassable } from "@/game/world/terrain";
 import { createId } from "@/lib/ids";
@@ -226,11 +227,19 @@ export async function departBase(
   db: AppDb,
   authUserId: string,
   actionId: string,
+  offenseCount?: number,
 ): Promise<PlayerSnapshot> {
   return runLocationCommand(db, authUserId, { actionId, actionType: ACTION_TYPES.depart }, async (ctx) => {
     if (ctx.player.locationType !== "BASE") {
       throw new GameError("INVALID_COMMAND", "Commander is already in the field.", 400);
     }
+    await ensureStartingTroops(ctx.tx, ctx.player.id, ctx.base.id);
+    await openExpedition(ctx.tx, {
+      playerId: ctx.player.id,
+      worldId: ctx.world.id,
+      baseId: ctx.base.id,
+      offenseCount,
+    });
     await writePlayerLocation(ctx.tx, ctx.player, {
       locationType: "FIELD",
       x: ctx.player.x!,
@@ -251,6 +260,7 @@ export async function enterBase(
     if (ctx.player.x !== ctx.base.x || ctx.player.y !== ctx.base.y) {
       throw new GameError("INVALID_COMMAND", "Walk onto your base tile to enter.", 400);
     }
+    await closeActiveExpedition(ctx.tx, ctx.player.id, ctx.base.id);
     await writePlayerLocation(ctx.tx, ctx.player, {
       locationType: "BASE",
       x: ctx.base.x,
@@ -282,6 +292,9 @@ export async function movePlayer(
     }
 
     const onOwnBase = target.x === ctx.base.x && target.y === ctx.base.y;
+    if (onOwnBase) {
+      await closeActiveExpedition(ctx.tx, ctx.player.id, ctx.base.id);
+    }
     await writePlayerLocation(ctx.tx, ctx.player, {
       locationType: onOwnBase ? "BASE" : "FIELD",
       x: target.x,

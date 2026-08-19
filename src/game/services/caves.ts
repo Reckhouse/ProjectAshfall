@@ -8,6 +8,7 @@ import { applyPassiveAccrual } from "@/game/services/accrual";
 import { loadSnapshot } from "@/game/services/provision";
 import { caveCandidatesInChunk, caveEnergyCost, pickToolAffinity } from "@/game/world/caves";
 import { chebyshevDistance, collectionBonusBps } from "@/game/world/nodes";
+import { caveRequiredPower, getExpeditionOffense, offensePower } from "@/game/services/troop-state";
 import { createSeededRng } from "@/game/world/rng";
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
@@ -161,6 +162,16 @@ export async function clearCave(
         .limit(1);
       if (already) {
         throw new GameError("CAVE_ALREADY_CLEARED", "You already cleared that cave.", 400);
+      }
+
+      const committed = await getExpeditionOffense(tx, player.id);
+      const required = caveRequiredPower(cave.tier);
+      if (offensePower(committed) < required) {
+        throw new GameError(
+          "INSUFFICIENT_TROOPS",
+          `Commit at least ${Math.ceil(required / balanceV1.troops.offenseAttack)} offense troops to clear this cave.`,
+          400,
+        );
       }
 
       const energyCost = caveEnergyCost(cave.tier);

@@ -6,8 +6,9 @@ import { GameError } from "@/game/domain/errors";
 import type { LocationType, PlayerSnapshot, Rng, SpawnRegion, WorldView } from "@/game/domain/types";
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
-import { allocateBaseSpawn } from "@/game/services/spawn";
 import { applyPassiveAccrual } from "@/game/services/accrual";
+import { allocateBaseSpawn } from "@/game/services/spawn";
+import { ensureStartingTroops, loadTroopSnapshot } from "@/game/services/troop-state";
 import { productionRates } from "@/game/world/nodes";
 import { createCryptoRng } from "@/game/world/rng";
 
@@ -53,6 +54,7 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
   const equippedTools = await tx.select().from(toolInstances).where(eq(toolInstances.ownerPlayerId, player.id));
   const energyTool = equippedTools.find((tool) => tool.equippedSlot === "ENERGY");
   const metalTool = equippedTools.find((tool) => tool.equippedSlot === "METAL");
+  const troopView = await loadTroopSnapshot(tx, player.id);
 
   return {
     status: player.status as PlayerSnapshot["status"],
@@ -88,6 +90,8 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
         ? { tier: metalTool.tier, bonusBps: metalTool.collectionBonusBps }
         : null,
     },
+    troops: troopView.troops,
+    expedition: troopView.expedition,
   };
 }
 
@@ -211,6 +215,9 @@ export async function ensurePlayerProvisioned(
       }
 
       const [establishedBase] = await tx.select().from(bases).where(eq(bases.playerId, player.id)).limit(1);
+      if (establishedBase) {
+        await ensureStartingTroops(tx, player.id, establishedBase.id);
+      }
       const locationPatch: {
         locationType?: string;
         x?: number;

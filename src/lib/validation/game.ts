@@ -17,7 +17,9 @@ export const CLIENT_OWNED_STATE_KEYS = [
   "tier",
   "bonusBps",
   "affinity",
-  "collectionBonusBps",
+  "wounded",
+  "attackPower",
+  "defensePower",
 ] as const;
 
 export function rejectClientOwnedState(body: unknown): void {
@@ -50,6 +52,30 @@ export const moveCommandSchema = z
 export const locationCommandSchema = z
   .object({
     actionId: z.uuid(),
+  })
+  .strict();
+
+export const departCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        offenseCount: z.number().int().min(0).max(999).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+export const recruitCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        unitType: z.enum(["OFFENSE", "DEFENSE"]),
+        count: z.number().int().min(1).max(20),
+      })
+      .strict(),
   })
   .strict();
 

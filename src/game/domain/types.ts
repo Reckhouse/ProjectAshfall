@@ -28,6 +28,9 @@ export type TerrainKind = "plains" | "ash" | "rock" | "ruin";
 export type ResourceKind = "ENERGY" | "METAL";
 export type FeatureType = "ENERGY_NODE" | "METAL_NODE" | "CAVE";
 export type ToolSlot = "ENERGY" | "METAL";
+export type TroopType = "DEFENSE" | "OFFENSE";
+export type TroopLocationType = "BASE" | "EXPEDITION";
+export type ExpeditionStatus = "ACTIVE" | "RETURNED";
 
 export type EquippedTool = {
   tier: number;
@@ -58,6 +61,15 @@ export type PlayerSnapshot = {
     energy: EquippedTool | null;
     metal: EquippedTool | null;
   };
+  troops: {
+    defense: { atBase: number; deployed: number };
+    offense: { atBase: number; deployed: number };
+  };
+  expedition: {
+    id: string;
+    offense: number;
+    power: number;
+  } | null;
 };
 
 export type Rng = {

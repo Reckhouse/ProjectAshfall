@@ -33,6 +33,11 @@ describe("player provisioning", () => {
       x: snapshot.base?.x,
       y: snapshot.base?.y,
     });
+    expect(snapshot.troops).toEqual({
+      defense: { atBase: 2, deployed: 0 },
+      offense: { atBase: 2, deployed: 0 },
+    });
+    expect(snapshot.expedition).toBeNull();
 
     const playerRows = await db.select().from(players);
     const baseRows = await db.select().from(bases);

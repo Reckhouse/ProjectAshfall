@@ -75,6 +75,18 @@ export const balanceV1 = {
       },
     },
   },
+  troops: {
+    startingDefense: 2,
+    startingOffense: 2,
+    offenseAttack: 10,
+    defenseDefense: 10,
+    cavePowerPerTier: 10,
+    maxPerType: 20,
+    recruitMetalCost: {
+      OFFENSE: 40,
+      DEFENSE: 35,
+    },
+  },
 } as const;
 
 export type BalanceV1 = typeof balanceV1;

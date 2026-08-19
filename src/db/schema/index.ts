@@ -297,3 +297,57 @@ export const gameActions = pgTable(
     check("game_actions_status_check", sql`${table.status} in ('STARTED', 'COMPLETED', 'FAILED')`),
   ],
 );
+
+export const expeditions = pgTable(
+  "expeditions",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    worldId: uuid("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    status: text("status").notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    returnedAt: timestamp("returned_at", { withTimezone: true, mode: "date" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    check("expeditions_status_check", sql`${table.status} in ('ACTIVE', 'RETURNED')`),
+    uniqueIndex("expeditions_one_active").on(table.playerId).where(sql`${table.status} = 'ACTIVE'`),
+    index("expeditions_player_idx").on(table.playerId),
+  ],
+);
+
+export const troopStacks = pgTable(
+  "troop_stacks",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    locationType: text("location_type").notNull(),
+    locationId: uuid("location_id").notNull(),
+    unitType: text("unit_type").notNull(),
+    quantity: integer("quantity").notNull(),
+    wounded: integer("wounded").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("troop_stacks_type_check", sql`${table.unitType} in ('DEFENSE', 'OFFENSE')`),
+    check("troop_stacks_location_check", sql`${table.locationType} in ('BASE', 'EXPEDITION')`),
+    check("troop_stacks_qty_check", sql`${table.quantity} >= 0 and ${table.wounded} >= 0 and ${table.wounded} <= ${table.quantity}`),
+    check("troop_stacks_defense_home_check", sql`${table.unitType} <> 'DEFENSE' or ${table.locationType} = 'BASE'`),
+    unique("troop_stacks_assignment_unique").on(table.playerId, table.locationType, table.locationId, table.unitType),
+    index("troop_stacks_player_idx").on(table.playerId),
+  ],
+);

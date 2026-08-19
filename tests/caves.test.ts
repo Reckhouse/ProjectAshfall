@@ -8,6 +8,7 @@ import { getVisibleChunks } from "@/game/services/chunks";
 import { collectResource } from "@/game/services/economy";
 import { materializeChunkNodes } from "@/game/services/nodes";
 import { ensurePlayerProvisioned } from "@/game/services/provision";
+import { departBase } from "@/game/services/move";
 import { caveCandidateAt, caveCandidatesInChunk, pickGatherCave, pickToolAffinity } from "@/game/world/caves";
 import { chunkCoord } from "@/game/world/chunks";
 import { applyCollectionBonus, chebyshevDistance, nodeCandidateAt } from "@/game/world/nodes";
@@ -94,6 +95,7 @@ describe("caves and tools", () => {
     const [playerRow] = await db.select().from(players).where(eq(players.authUserId, "cave-1"));
     const cave = await findCaveOnWorld(db, world, playerRow!.id);
 
+    await departBase(db, "cave-1", crypto.randomUUID());
     await db
       .update(players)
       .set({ x: cave.x, y: cave.y, locationType: "FIELD" })

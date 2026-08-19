@@ -19,6 +19,7 @@ type CommandResponse = {
   upgrade?: { level: number; metalSpent: number };
   cave?: { id: string; tier: number };
   tool?: { affinity: "ENERGY" | "METAL"; tier: number; bonusBps: number; equipped: boolean };
+  recruited?: { unitType: "OFFENSE" | "DEFENSE"; count: number; metalSpent: number };
 };
 
 const TERRAIN_CLASS: Record<TerrainKind, string> = {
@@ -77,12 +78,14 @@ export function GameShell({
   const pendingRef = useRef(false);
   const queuedDirection = useRef<Direction | null>(null);
   const viewRef = useRef(view);
+  const takeOffenseRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
 
   const location = player.location;
+  const offenseAtBase = player.troops?.offense.atBase ?? 0;
   const onOwnBase =
     Boolean(player.base && location && player.base.x === location.x && player.base.y === location.y);
 
@@ -179,7 +182,7 @@ export function GameShell({
         });
         if (next?.player?.location) {
           const returned = next.player.location.type === "BASE";
-          setFeedback(returned ? "Returned to base." : `Moved ${nextDirection}.`);
+          setFeedback(returned ? "Returned to base. Offense is home." : `Moved ${nextDirection}.`);
         }
         nextDirection = queuedDirection.current;
         queuedDirection.current = null;
@@ -189,18 +192,36 @@ export function GameShell({
   );
 
   const leaveBase = useCallback(async () => {
-    const next = await sendCommand("/api/game/depart", { actionId: newActionId() });
-    if (next) {
-      setFeedback("Left base. The field is live.");
+    const requested = Number(takeOffenseRef.current?.value ?? offenseAtBase);
+    const offenseCount = Math.min(offenseAtBase, Math.max(0, Number.isFinite(requested) ? requested : 0));
+    const next = await sendCommand("/api/game/depart", {
+      actionId: newActionId(),
+      payload: { offenseCount },
+    });
+    if (next?.player) {
+      setFeedback(`Left base with ${next.player.troops?.offense.deployed ?? 0} offense.`);
     }
-  }, [sendCommand]);
+  }, [sendCommand, offenseAtBase]);
 
   const enterBase = useCallback(async () => {
     const next = await sendCommand("/api/game/enter-base", { actionId: newActionId() });
     if (next) {
-      setFeedback("Entered base.");
+      setFeedback("Entered base. Surviving offense returned home.");
     }
   }, [sendCommand]);
+
+  const recruit = useCallback(
+    async (unitType: "OFFENSE" | "DEFENSE") => {
+      const next = await sendCommand("/api/game/recruit", {
+        actionId: newActionId(),
+        payload: { unitType, count: 1 },
+      });
+      if (next?.recruited) {
+        setFeedback(`Recruited ${next.recruited.count} ${next.recruited.unitType.toLowerCase()}.`);
+      }
+    },
+    [sendCommand],
+  );
 
   const collectNode = useCallback(
     async (nodeId: string) => {
@@ -429,17 +450,64 @@ export function GameShell({
             tone="metal"
             testId="metal-tool"
           />
+          <StatusRow
+            label="Defense"
+            value={String(player.troops?.defense.atBase ?? 0)}
+            testId="defense-troops"
+          />
+          <StatusRow
+            label="Offense"
+            value={
+              player.expedition
+                ? `${player.troops?.offense.atBase ?? 0} home · ${player.troops?.offense.deployed ?? 0} field`
+                : String(player.troops?.offense.atBase ?? 0)
+            }
+            testId="offense-troops"
+          />
           <div className="flex flex-col gap-2 pt-2">
             {location?.type === "BASE" ? (
-              <button
-                type="button"
-                data-testid="leave-base"
-                onClick={() => void leaveBase()}
-                disabled={pending}
-                className="min-h-11 border border-[var(--ash-rust)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-              >
-                Leave base
-              </button>
+              <>
+                <label className="ash-label flex items-center justify-between gap-3">
+                  Take offense
+                  <input
+                    ref={takeOffenseRef}
+                    type="number"
+                    min={0}
+                    max={offenseAtBase}
+                    defaultValue={offenseAtBase}
+                    key={`offense-${offenseAtBase}`}
+                    data-testid="offense-take"
+                    className="w-16 border border-[var(--ash-border)] bg-transparent px-2 py-1 text-right text-[var(--ash-text)]"
+                  />
+                </label>
+                <button
+                  type="button"
+                  data-testid="leave-base"
+                  onClick={() => void leaveBase()}
+                  disabled={pending}
+                  className="min-h-11 border border-[var(--ash-rust)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+                >
+                  Leave base
+                </button>
+                <button
+                  type="button"
+                  data-testid="recruit-offense"
+                  onClick={() => void recruit("OFFENSE")}
+                  disabled={pending || (player.resources?.metal ?? 0) < balanceV1.troops.recruitMetalCost.OFFENSE}
+                  className="min-h-11 border border-[var(--ash-metal)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+                >
+                  Recruit offense · {balanceV1.troops.recruitMetalCost.OFFENSE} Metal
+                </button>
+                <button
+                  type="button"
+                  data-testid="recruit-defense"
+                  onClick={() => void recruit("DEFENSE")}
+                  disabled={pending || (player.resources?.metal ?? 0) < balanceV1.troops.recruitMetalCost.DEFENSE}
+                  className="min-h-11 border border-[var(--ash-olive)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+                >
+                  Recruit defense · {balanceV1.troops.recruitMetalCost.DEFENSE} Metal
+                </button>
+              </>
             ) : null}
             {location?.type === "BASE" &&
             player.base &&
