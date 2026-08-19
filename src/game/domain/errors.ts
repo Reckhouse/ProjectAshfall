@@ -21,6 +21,10 @@ export const GAME_ERROR_CODES = [
   "VALIDATION_ERROR",
   "ADMIN_REQUIRED",
   "CALLSIGN_TAKEN",
+  "TAG_TAKEN",
+  "ALLIANCE_FULL",
+  "ALLIED_TARGET",
+  "NOT_ALLIANCE_LEADER",
 ] as const;
 
 export type GameErrorCode = (typeof GAME_ERROR_CODES)[number];

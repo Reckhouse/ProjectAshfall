@@ -87,14 +87,18 @@ function terrainAt(view: VisibleWorldView | null, x: number, y: number): Terrain
   return null;
 }
 
-function ownerLabel(base: { displayName?: string | null; owned?: boolean } | null | undefined, fallback: string): string {
+function ownerLabel(
+  base: { displayName?: string | null; owned?: boolean; allianceTag?: string | null } | null | undefined,
+  fallback: string,
+): string {
   if (!base) {
     return fallback;
   }
+  const tag = base.allianceTag ? `[${base.allianceTag}] ` : "";
   if (base.owned) {
-    return base.displayName ? `Your bunker · ${base.displayName}` : "Your bunker";
+    return base.displayName ? `Your bunker · ${tag}${base.displayName}` : "Your bunker";
   }
-  return base.displayName ? `${base.displayName}'s bunker` : "Unknown commander";
+  return base.displayName ? `${tag}${base.displayName}'s bunker` : "Unknown commander";
 }
 
 function sceneAt(
@@ -122,7 +126,7 @@ function sceneAt(
   );
   const standingHere = player.location?.x === x && player.location?.y === y;
   const heading = ownBase
-    ? ownerLabel({ displayName: player.displayName, owned: true }, TILE_ART[art].heading)
+    ? ownerLabel({ displayName: player.displayName, owned: true, allianceTag: player.alliance?.tag }, TILE_ART[art].heading)
     : other
       ? ownerLabel(other, TILE_ART[art].heading)
       : TILE_ART[art].heading;
@@ -484,13 +488,19 @@ export function GameShell({
       announce("No field location to raid from.");
       return;
     }
-    const targets = (view?.bases ?? [])
+    const nearby = (view?.bases ?? [])
       .filter((base) => !base.owned)
-      .filter((base) => chebyshevDistance(location, base) <= balanceV1.pvp.raidChebyshevRange)
+      .filter((base) => chebyshevDistance(location, base) <= balanceV1.pvp.raidChebyshevRange);
+    const targets = nearby
+      .filter((base) => !base.allied)
       .sort((left, right) => chebyshevDistance(location, left) - chebyshevDistance(location, right) || left.id.localeCompare(right.id));
     const target = targets[0];
     if (!target) {
-      announce("Move adjacent to another commander's base to raid.");
+      announce(
+        nearby.some((base) => base.allied)
+          ? "Allied bunkers cannot be raided."
+          : "Move adjacent to another commander's base to raid.",
+      );
       return;
     }
     if (target.protected) {
@@ -566,6 +576,8 @@ export function GameShell({
           otherBase: Boolean(other),
           otherBaseId: other?.id ?? null,
           otherProtected: Boolean(other?.protected),
+          otherAllied: Boolean(other?.allied),
+          otherAllianceTag: other?.allianceTag ?? null,
           otherDisplayName: other?.displayName ?? null,
           passable,
           isPlayer: dx === 0 && dy === 0,
@@ -587,7 +599,7 @@ export function GameShell({
       await clearCave(tile.cave.id);
       return;
     }
-    if (tile.otherBaseId && tile.collectRange) {
+    if (tile.otherBaseId && tile.collectRange && !tile.otherAllied) {
       await raidBase(tile.otherBaseId, { x: tile.x, y: tile.y });
       return;
     }
@@ -605,6 +617,13 @@ export function GameShell({
           <h1 className="mt-1 text-2xl font-semibold text-[var(--ash-beige)]">PROJECT ASHFALL</h1>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/alliance"
+            data-testid="alliance-link"
+            className="min-h-11 border border-[var(--ash-border)] px-4 py-2 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)]"
+          >
+            Alliance
+          </Link>
           <Link
             href="/standings"
             data-testid="standings-link"
@@ -671,6 +690,11 @@ export function GameShell({
             label="Callsign"
             value={player.displayName ?? "UNCLAIMED"}
             testId="player-callsign"
+          />
+          <StatusRow
+            label="Alliance"
+            value={player.alliance ? `[${player.alliance.tag}]` : "NONE"}
+            testId="player-alliance"
           />
           <StatusRow
             label="World rank"
@@ -777,12 +801,12 @@ export function GameShell({
               ]
                 .filter(Boolean)
                 .join(" ");
-              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}${tile.cave ? " cave" : ""}${tile.ownBase ? ` ${player.displayName ?? "your base"}` : ""}${tile.otherDisplayName ? ` ${tile.otherDisplayName}` : tile.otherBase ? " unknown commander" : ""}`;
+              const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}${tile.cave ? " cave" : ""}${tile.ownBase ? ` ${player.displayName ?? "your base"}` : ""}${tile.otherAllianceTag ? ` [${tile.otherAllianceTag}]` : ""}${tile.otherDisplayName ? ` ${tile.otherDisplayName}` : tile.otherBase ? " unknown commander" : ""}${tile.otherAllied ? " allied" : ""}`;
               const clickable = Boolean(
                 tile.adjacent ||
                   (tile.node && tile.collectRange) ||
                   (tile.cave && tile.collectRange) ||
-                  (tile.otherBaseId && tile.collectRange),
+                  (tile.otherBaseId && tile.collectRange && !tile.otherAllied),
               );
               return (
                 <button
@@ -804,6 +828,7 @@ export function GameShell({
                   data-cave-id={tile.cave?.id}
                   data-raid-base-id={tile.otherBaseId ?? undefined}
                   data-raid-protected={tile.otherProtected ? "true" : "false"}
+                  data-allied={tile.otherAllied ? "true" : "false"}
                   onClick={() => void onTileClick(tile)}
                 >
                   {tile.isPlayer
@@ -817,9 +842,11 @@ export function GameShell({
                         : tile.ownBase
                           ? "⌂"
                           : tile.otherBase
-                            ? tile.otherProtected
-                              ? "P"
-                              : "R"
+                            ? tile.otherAllied
+                              ? "A"
+                              : tile.otherProtected
+                                ? "P"
+                                : "R"
                           : ""}
                 </button>
               );
@@ -834,8 +861,10 @@ export function GameShell({
                 .filter((base) => !base.owned)
                 .map((base) => (
                   <li key={base.id}>
-                    {base.x}, {base.y} · {base.displayName ?? "Unnamed"}
+                    {base.x}, {base.y} · {base.allianceTag ? `[${base.allianceTag}] ` : ""}
+                    {base.displayName ?? "Unnamed"}
                     {base.kind === "BOT" ? " · bot" : ""}
+                    {base.allied ? " · allied" : ""}
                     {base.protected ? " · protected" : ""}
                   </li>
                 ))}

@@ -29,6 +29,7 @@
 - cooldowns
 - loot
 - spawn legality
+- alliance membership and tags
 
 ## Command pattern
 

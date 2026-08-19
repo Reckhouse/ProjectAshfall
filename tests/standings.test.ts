@@ -69,7 +69,13 @@ describe("world standings", () => {
     const standings = await loadWorldStandings(db, { viewerAuthUserId: "stand-a" });
     expect(standings.commanderCount).toBe(2);
     expect(standings.board.map((row) => row.callsign)).toEqual(["AshBravo", "AshAlpha"]);
-    expect(standings.board[0]).toMatchObject({ rank: 1, callsign: "AshBravo", you: false, baseLevel: 4 });
+    expect(standings.board[0]).toMatchObject({
+      rank: 1,
+      callsign: "AshBravo",
+      you: false,
+      baseLevel: 4,
+      allianceTag: null,
+    });
     expect(standings.you).toMatchObject({ rank: 2, callsign: "AshAlpha", you: true });
     const limited = await loadWorldStandings(db, { viewerAuthUserId: "stand-a", boardLimit: 1 });
     expect(limited.board.map((row) => row.callsign)).toEqual(["AshBravo", "AshAlpha"]);

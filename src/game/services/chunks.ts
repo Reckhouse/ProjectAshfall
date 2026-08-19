@@ -1,5 +1,5 @@
 import { and, eq, gte, lte } from "drizzle-orm";
-import { bases, players, worlds } from "@/db/schema";
+import { allianceMembers, alliances, bases, players, worlds } from "@/db/schema";
 import type { AppDb } from "@/db/types";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError } from "@/game/domain/errors";
@@ -77,9 +77,13 @@ export async function getVisibleChunks(
       ownerCreatedAt: players.createdAt,
       ownerKind: players.kind,
       displayName: players.displayName,
+      allianceId: allianceMembers.allianceId,
+      allianceTag: alliances.tag,
     })
     .from(bases)
     .innerJoin(players, eq(players.id, bases.playerId))
+    .leftJoin(allianceMembers, eq(allianceMembers.playerId, players.id))
+    .leftJoin(alliances, eq(alliances.id, allianceMembers.allianceId))
     .where(
       and(
         eq(bases.worldId, world.id),
@@ -100,6 +104,12 @@ export async function getVisibleChunks(
     maxY,
   });
 
+  const [viewerAlliance] = await db
+    .select({ allianceId: allianceMembers.allianceId })
+    .from(allianceMembers)
+    .where(eq(allianceMembers.playerId, player.id))
+    .limit(1);
+
   return {
     world: world.slug,
     chunkSize: size,
@@ -117,6 +127,12 @@ export async function getVisibleChunks(
       y: base.y,
       owned: base.playerId === player.id,
       displayName: base.displayName,
+      allianceTag: base.allianceTag,
+      allied: Boolean(
+        viewerAlliance?.allianceId &&
+          base.playerId !== player.id &&
+          base.allianceId === viewerAlliance.allianceId,
+      ),
       kind: (base.ownerKind === "BOT" ? "BOT" : "HUMAN") as "HUMAN" | "BOT",
       protected:
         base.playerId !== player.id &&

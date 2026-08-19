@@ -7,6 +7,7 @@ import type { LocationType, PlayerSnapshot, Rng, SpawnRegion, WorldView } from "
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
 import { applyPassiveAccrual } from "@/game/services/accrual";
+import { getAllianceSummary } from "@/game/services/alliances";
 import { allocateBaseSpawn } from "@/game/services/spawn";
 import { ensureStartingTroops, loadTroopSnapshot } from "@/game/services/troop-state";
 import { productionRates, storageCaps } from "@/game/world/nodes";
@@ -55,11 +56,13 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
   const energyTool = equippedTools.find((tool) => tool.equippedSlot === "ENERGY");
   const metalTool = equippedTools.find((tool) => tool.equippedSlot === "METAL");
   const troopView = await loadTroopSnapshot(tx, player.id);
+  const alliance = await getAllianceSummary(tx, player.id);
 
   return {
     status: player.status as PlayerSnapshot["status"],
     kind: (player.kind as PlayerSnapshot["kind"]) || "HUMAN",
     displayName: player.displayName ?? null,
+    alliance,
     world: world?.slug ?? null,
     base: base
       ? {

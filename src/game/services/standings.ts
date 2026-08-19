@@ -1,6 +1,6 @@
 import { alias } from "drizzle-orm/pg-core";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
-import { bases, battleReports, caveClears, players, worlds } from "@/db/schema";
+import { allianceMembers, alliances, bases, battleReports, caveClears, players, worlds } from "@/db/schema";
 import type { AppDb } from "@/db/types";
 import { balanceV1 } from "@/game/config/balance.v1";
 import type { PlayerKind, RaidIntel, StandingEntry, WorldStandings } from "@/game/domain/types";
@@ -19,6 +19,7 @@ type RankedCandidate = StandingInputs & {
   authUserId: string;
   callsign: string;
   kind: PlayerKind;
+  allianceTag: string | null;
 };
 
 export function standingScore(
@@ -58,6 +59,7 @@ function toEntry(row: RankedCandidate, rank: number, viewerAuthUserId: string | 
     rank,
     callsign: row.callsign,
     kind: row.kind,
+    allianceTag: row.allianceTag,
     baseLevel: row.baseLevel,
     storageLevel: row.storageLevel,
     raidWins: row.raidWins,
@@ -80,11 +82,14 @@ export async function loadWorldStandings(
       authUserId: players.authUserId,
       callsign: players.displayName,
       kind: players.kind,
+      allianceTag: alliances.tag,
       baseLevel: bases.level,
       storageLevel: bases.storageLevel,
     })
     .from(players)
     .innerJoin(bases, eq(bases.playerId, players.id))
+    .leftJoin(allianceMembers, eq(allianceMembers.playerId, players.id))
+    .leftJoin(alliances, eq(alliances.id, allianceMembers.allianceId))
     .where(
       and(
         eq(players.status, "ACTIVE"),
@@ -123,6 +128,7 @@ export async function loadWorldStandings(
         authUserId: row.authUserId,
         callsign: row.callsign,
         kind: row.kind as PlayerKind,
+        allianceTag: row.allianceTag ?? null,
         baseLevel: row.baseLevel,
         storageLevel: row.storageLevel,
         raidWins: asCount(raids?.raidWins),

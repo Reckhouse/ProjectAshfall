@@ -442,3 +442,78 @@ export const raidCooldowns = pgTable(
     index("raid_cooldowns_defender_idx").on(table.defenderPlayerId),
   ],
 );
+
+export const alliances = pgTable(
+  "alliances",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    worldId: uuid("world_id")
+      .notNull()
+      .references(() => worlds.id),
+    tag: text("tag").notNull(),
+    name: text("name").notNull(),
+    leaderPlayerId: uuid("leader_player_id")
+      .notNull()
+      .references(() => players.id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    uniqueIndex("alliances_tag_lower_idx").on(sql`lower(${table.tag})`),
+    index("alliances_world_idx").on(table.worldId),
+    index("alliances_leader_idx").on(table.leaderPlayerId),
+  ],
+);
+
+export const allianceMembers = pgTable(
+  "alliance_members",
+  {
+    allianceId: uuid("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    role: text("role").notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    unique("alliance_members_pk").on(table.allianceId, table.playerId),
+    uniqueIndex("alliance_members_player_unique").on(table.playerId),
+    check("alliance_members_role_check", sql`${table.role} in ('LEADER', 'MEMBER')`),
+  ],
+);
+
+export const allianceInvites = pgTable(
+  "alliance_invites",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    allianceId: uuid("alliance_id")
+      .notNull()
+      .references(() => alliances.id, { onDelete: "cascade" }),
+    fromPlayerId: uuid("from_player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    toPlayerId: uuid("to_player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    status: text("status").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    check("alliance_invites_status_check", sql`${table.status} in ('PENDING', 'ACCEPTED', 'DECLINED', 'REVOKED')`),
+    uniqueIndex("alliance_invites_pending_unique")
+      .on(table.allianceId, table.toPlayerId)
+      .where(sql`${table.status} = 'PENDING'`),
+    index("alliance_invites_to_idx").on(table.toPlayerId, table.status),
+  ],
+);

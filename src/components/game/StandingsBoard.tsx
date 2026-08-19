@@ -9,7 +9,8 @@ export function StandingsBoard({ standings }: { standings: WorldStandings }) {
         <p className="ash-label">Your standing</p>
         {standings.you ? (
           <p className="mt-2 font-mono text-lg text-[var(--ash-beige)]" data-testid="standings-you-rank">
-            #{standings.you.rank} · {standings.you.callsign} · {standings.you.score} pts
+            #{standings.you.rank} · {standings.you.callsign}
+            {standings.you.allianceTag ? ` · [${standings.you.allianceTag}]` : ""} · {standings.you.score} pts
           </p>
         ) : (
           <p className="mt-2 text-sm text-[var(--ash-muted)]">Claim a callsign to enter the world board.</p>
@@ -29,6 +30,7 @@ export function StandingsBoard({ standings }: { standings: WorldStandings }) {
               <tr className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-[var(--ash-muted)]">
                 <th className="pb-2 pr-3 font-normal">Rank</th>
                 <th className="pb-2 pr-3 font-normal">Callsign</th>
+                <th className="pb-2 pr-3 font-normal">Alliance</th>
                 <th className="pb-2 pr-3 font-normal">Kind</th>
                 <th className="pb-2 pr-3 font-normal">Base</th>
                 <th className="pb-2 pr-3 font-normal">Storage</th>
@@ -71,6 +73,7 @@ function StandingRow({ row }: { row: StandingEntry }) {
     >
       <td className="py-1.5 pr-3">#{row.rank}</td>
       <td className="py-1.5 pr-3">{row.callsign}</td>
+      <td className="py-1.5 pr-3">{row.allianceTag ? `[${row.allianceTag}]` : "—"}</td>
       <td className="py-1.5 pr-3">{row.kind === "BOT" ? "Bot" : "Human"}</td>
       <td className="py-1.5 pr-3">{row.baseLevel}</td>
       <td className="py-1.5 pr-3">{row.storageLevel}</td>

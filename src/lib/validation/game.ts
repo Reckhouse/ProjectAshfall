@@ -36,6 +36,8 @@ export const CLIENT_OWNED_STATE_KEYS = [
   "score",
   "raidWins",
   "caveClears",
+  "allianceId",
+  "role",
 ] as const;
 
 export function rejectClientOwnedState(body: unknown): void {
@@ -129,6 +131,52 @@ export const raidCommandSchema = z
     payload: z
       .object({
         targetBaseId: z.uuid(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const createAllianceCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        tag: z.string(),
+        name: z.string(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const inviteAllianceCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        callsign: z.string(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const respondAllianceCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        inviteId: z.uuid(),
+        accept: z.boolean(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const kickAllianceCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        callsign: z.string(),
       })
       .strict(),
   })

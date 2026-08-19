@@ -39,10 +39,43 @@ export type EquippedTool = {
   bonusBps: number;
 };
 
+export type AllianceRole = "LEADER" | "MEMBER";
+
+export type AllianceSummary = {
+  tag: string;
+  name: string;
+  role: AllianceRole;
+};
+
+export type AllianceMemberView = {
+  callsign: string;
+  role: AllianceRole;
+  you: boolean;
+};
+
+export type AllianceInviteView = {
+  id: string;
+  tag: string;
+  name: string;
+  fromCallsign: string;
+};
+
+export type AllianceDesk = {
+  alliance: {
+    tag: string;
+    name: string;
+    role: AllianceRole;
+    members: AllianceMemberView[];
+  } | null;
+  incoming: AllianceInviteView[];
+  outgoing: Array<{ id: string; callsign: string }>;
+};
+
 export type StandingEntry = {
   rank: number;
   callsign: string;
   kind: PlayerKind;
+  allianceTag: string | null;
   baseLevel: number;
   storageLevel: number;
   raidWins: number;
@@ -71,6 +104,7 @@ export type PlayerSnapshot = {
   status: PlayerStatus;
   kind: PlayerKind;
   displayName: string | null;
+  alliance: AllianceSummary | null;
   world: string | null;
   base: {
     x: number;

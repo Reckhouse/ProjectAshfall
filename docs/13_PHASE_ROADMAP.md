@@ -131,4 +131,19 @@ Out of scope for this slice:
 - seasons / world resets
 - events
 
-Only add those after this ranking surface is stable.
+## Phase 9 — Alliances
+
+Delivered:
+- found an alliance with a unique 3–5 character tag and a 3–24 character name
+- leader invites by callsign; invitee accepts or declines
+- leave, leader kick, and leadership transfer to the oldest remaining member
+- one alliance per commander, max 8 members, humans only
+- allied bunkers cannot raid each other
+- public tags on the command shell, local map, and world standings
+- no shared stockpiles, coordinates, or troop counts
+
+Out of scope for this slice:
+- messaging / chat
+- seasons / world resets
+- events
+- trading or shared alliance inventories

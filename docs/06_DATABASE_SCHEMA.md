@@ -216,6 +216,46 @@ wounded
 version
 ```
 
+## `alliances`
+
+```text
+id
+world_id
+tag                  unique, case-insensitive
+name
+leader_player_id
+created_at
+updated_at
+version
+```
+
+## `alliance_members`
+
+```text
+alliance_id
+player_id            unique — one alliance per commander
+role                 LEADER | MEMBER
+joined_at
+```
+
+Constraints:
+- primary key `(alliance_id, player_id)`
+- bots never receive rows
+
+## `alliance_invites`
+
+```text
+id
+alliance_id
+from_player_id
+to_player_id
+status               PENDING | ACCEPTED | DECLINED | REVOKED
+created_at
+```
+
+Constraints:
+- unique pending invite per `(alliance_id, to_player_id)`
+
 ## Atomic resource spending
 
 Bad:

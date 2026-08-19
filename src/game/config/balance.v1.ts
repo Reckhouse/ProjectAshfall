@@ -130,6 +130,13 @@ export const balanceV1 = {
     metalLootCap: 180,
     minDefensePowerUnits: 1,
   },
+  alliances: {
+    maxMembers: 8,
+    tagMin: 3,
+    tagMax: 5,
+    nameMin: 3,
+    nameMax: 24,
+  },
   rankings: {
     boardLimit: 25,
     intelLimit: 12,

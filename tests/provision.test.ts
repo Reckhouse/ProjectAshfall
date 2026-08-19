@@ -41,6 +41,7 @@ describe("player provisioning", () => {
       offense: { atBase: 2, deployed: 0 },
     });
     expect(snapshot.expedition).toBeNull();
+    expect(snapshot.alliance).toBeNull();
 
     const playerRows = await db.select().from(players);
     const baseRows = await db.select().from(bases);

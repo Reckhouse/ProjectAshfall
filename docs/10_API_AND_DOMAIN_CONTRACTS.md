@@ -118,6 +118,30 @@ Server derives:
 - casualties
 - tool reward
 
+## Alliance commands
+
+```http
+GET /api/game/alliance
+POST /api/game/alliance
+POST /api/game/alliance/invite
+POST /api/game/alliance/respond
+POST /api/game/alliance/leave
+POST /api/game/alliance/kick
+```
+
+Create input:
+
+```json
+{
+  "actionId": "uuid",
+  "payload": { "tag": "ASH", "name": "Ash Company" }
+}
+```
+
+Invite and kick identify the other commander by callsign. The client never submits `playerId`, `allianceId`, or `role`.
+
+Visible chunk bases may include `allianceTag` and `allied`. They must not include another commander's `allianceId`, inventory, or coordinates beyond the bunker already shown on the map.
+
 ## DTO principle
 
 Return only data necessary for the player UI.

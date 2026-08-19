@@ -5,6 +5,7 @@ import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError, isGameError } from "@/game/domain/errors";
 import type { PlayerSnapshot } from "@/game/domain/types";
 import { applyPassiveAccrual } from "@/game/services/accrual";
+import { sameAlliance } from "@/game/services/alliances";
 import { resolveCombat, type BattleReport } from "@/game/services/combat";
 import { loadSnapshot } from "@/game/services/provision";
 import {
@@ -96,6 +97,9 @@ export async function raidBase(
       }
       if (targetBase.playerId === viewer.id) {
         throw new GameError("INVALID_COMMAND", "You cannot raid your own base.", 400);
+      }
+      if (await sameAlliance(tx, viewer.id, targetBase.playerId)) {
+        throw new GameError("ALLIED_TARGET", "You cannot raid an allied bunker.", 400);
       }
 
       await lockPlayersById(tx, viewer.id, targetBase.playerId);
