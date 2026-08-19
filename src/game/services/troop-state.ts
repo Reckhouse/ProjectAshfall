@@ -280,3 +280,56 @@ export async function getExpeditionOffense(tx: AppTx | AppDb, playerId: string):
     );
   return stacks.reduce((sum, stack) => sum + stack.quantity, 0);
 }
+
+export async function getBaseDefense(tx: AppTx | AppDb, playerId: string, baseId: string): Promise<number> {
+  const [stack] = await tx
+    .select()
+    .from(troopStacks)
+    .where(
+      and(
+        eq(troopStacks.playerId, playerId),
+        eq(troopStacks.locationType, "BASE"),
+        eq(troopStacks.locationId, baseId),
+        eq(troopStacks.unitType, "DEFENSE"),
+      ),
+    )
+    .limit(1);
+  return stack?.quantity ?? 0;
+}
+
+export async function applyBaseDefenseCasualties(
+  tx: AppTx,
+  playerId: string,
+  baseId: string,
+  casualties: number,
+): Promise<number> {
+  const requested = Math.max(0, Math.trunc(casualties));
+  const [stack] = await tx
+    .select()
+    .from(troopStacks)
+    .where(
+      and(
+        eq(troopStacks.playerId, playerId),
+        eq(troopStacks.locationType, "BASE"),
+        eq(troopStacks.locationId, baseId),
+        eq(troopStacks.unitType, "DEFENSE"),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  if (!stack || stack.quantity <= 0 || requested === 0) {
+    return 0;
+  }
+  const killed = Math.min(requested, stack.quantity);
+  const remaining = stack.quantity - killed;
+  await tx
+    .update(troopStacks)
+    .set({
+      quantity: remaining,
+      wounded: Math.min(stack.wounded, remaining),
+      updatedAt: new Date(),
+      version: stack.version + 1,
+    })
+    .where(eq(troopStacks.id, stack.id));
+  return killed;
+}

@@ -55,6 +55,29 @@ export const balanceV1 = {
         extraEnergyPerHourPerLevel: 4,
         extraMetalPerHourPerLevel: 2,
       },
+      storage: {
+        maxLevel: 5,
+        metalCostByFromLevel: {
+          1: 60,
+          2: 160,
+          3: 420,
+          4: 1100,
+        },
+        energyCapByLevel: {
+          1: 800,
+          2: 1400,
+          3: 2400,
+          4: 4000,
+          5: 6500,
+        },
+        metalCapByLevel: {
+          1: 2200,
+          2: 3800,
+          3: 6500,
+          4: 11000,
+          5: 18000,
+        },
+      },
     },
     caves: {
       perThousandTiles: 5,
@@ -96,6 +119,16 @@ export const balanceV1 = {
     varianceMaxBps: 11500,
     baseDefenseModifierBps: 10300,
     caveDefenseUnitsPerTier: 1,
+  },
+  pvp: {
+    newPlayerProtectionMs: 72 * 3_600_000,
+    repeatTargetCooldownMs: 8 * 3_600_000,
+    raidChebyshevRange: 1,
+    raidEnergyCost: 40,
+    lootBps: 1200,
+    energyLootCap: 120,
+    metalLootCap: 180,
+    minDefensePowerUnits: 1,
   },
 } as const;
 

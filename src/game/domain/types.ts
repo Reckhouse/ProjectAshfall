@@ -45,10 +45,13 @@ export type PlayerSnapshot = {
     y: number;
     status: "ESTABLISHED" | "PENDING";
     level: number;
+    storageLevel: number;
   } | null;
   resources: {
     energy: number;
     metal: number;
+    energyCap: number;
+    metalCap: number;
     energyPerHour: number;
     metalPerHour: number;
   } | null;

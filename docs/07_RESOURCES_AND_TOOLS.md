@@ -33,6 +33,10 @@ Purpose:
 
 Passive progression should be weaker than active play.
 
+Storage upgrades raise Energy and Metal caps. Higher storage levels add larger capacity jumps than earlier ones.
+
+## Resource accounting
+
 ### Active map collection
 Purpose:
 - reward exploration

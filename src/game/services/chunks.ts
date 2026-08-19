@@ -6,6 +6,7 @@ import { GameError } from "@/game/domain/errors";
 import type { WorldView } from "@/game/domain/types";
 import { listCavesInBounds, materializeChunkCaves } from "@/game/services/caves";
 import { listNodesInBounds, materializeChunkNodes } from "@/game/services/nodes";
+import { isNewPlayerProtected } from "@/game/services/raid";
 import { chunkCoord, materializeChunk } from "@/game/world/chunks";
 
 function toWorldView(world: typeof worlds.$inferSelect): WorldView {
@@ -69,11 +70,14 @@ export async function getVisibleChunks(
 
   const nearbyBases = await db
     .select({
+      id: bases.id,
       x: bases.x,
       y: bases.y,
       playerId: bases.playerId,
+      ownerCreatedAt: players.createdAt,
     })
     .from(bases)
+    .innerJoin(players, eq(players.id, bases.playerId))
     .where(
       and(
         eq(bases.worldId, world.id),
@@ -106,9 +110,11 @@ export async function getVisibleChunks(
     },
     chunks,
     bases: nearbyBases.map((base) => ({
+      id: base.id,
       x: base.x,
       y: base.y,
       owned: base.playerId === player.id,
+      protected: base.playerId !== player.id && isNewPlayerProtected(base.ownerCreatedAt),
     })),
     nodes: nodes.map((node) => ({
       id: node.id,

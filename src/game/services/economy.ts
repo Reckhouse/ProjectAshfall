@@ -7,7 +7,7 @@ import type { PlayerSnapshot, ResourceKind } from "@/game/domain/types";
 import { applyPassiveAccrual } from "@/game/services/accrual";
 import { equippedToolBonus } from "@/game/services/caves";
 import { loadSnapshot } from "@/game/services/provision";
-import { applyCollectionBonus, baseUpgradeMetalCost, chebyshevDistance } from "@/game/world/nodes";
+import { applyCollectionBonus, baseUpgradeMetalCost, chebyshevDistance, storageCaps, storageUpgradeMetalCost } from "@/game/world/nodes";
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
 
@@ -78,7 +78,9 @@ export async function collectResource(
       if (!resources) {
         throw new GameError("INTERNAL_GAME_ERROR", "Resource account is missing.", 500);
       }
-      const cap = resource === "ENERGY" ? balanceV1.economy.passive.energyCap : balanceV1.economy.passive.metalCap;
+      const [storageBase] = await tx.select().from(bases).where(eq(bases.playerId, player.id)).limit(1);
+      const caps = storageCaps(storageBase?.storageLevel ?? 1);
+      const cap = resource === "ENERGY" ? caps.energyCap : caps.metalCap;
       const current = resource === "ENERGY" ? resources.energy : resources.metal;
       const bonusBps = await equippedToolBonus(tx, player.id, resource);
       const yielded = applyCollectionBonus(amount, bonusBps);
@@ -205,6 +207,100 @@ export async function upgradeBase(
   } catch (error) {
     logEvent({
       event: "base.upgrade.failed",
+      authUserId,
+      actionId,
+      code: isGameError(error) ? error.code : "INTERNAL_GAME_ERROR",
+    });
+    throw error;
+  }
+}
+
+export async function upgradeStorage(
+  db: AppDb,
+  authUserId: string,
+  actionId: string,
+): Promise<{ player: PlayerSnapshot; storage: { level: number; metalSpent: number; energyCap: number; metalCap: number } }> {
+  try {
+    const result = await db.transaction(async (tx) => {
+      const [player] = await tx.select().from(players).where(eq(players.authUserId, authUserId)).for("update").limit(1);
+      if (!player || player.status !== "ACTIVE") {
+        throw new GameError("PLAYER_NOT_ACTIVE", "Commander is not active in the world.", 403);
+      }
+      const replayed = await replayAction(tx, player.id, actionId);
+      if (replayed !== "continue") {
+        return replayed as {
+          player: PlayerSnapshot;
+          storage: { level: number; metalSpent: number; energyCap: number; metalCap: number };
+        };
+      }
+      if (player.locationType !== "BASE") {
+        throw new GameError("INVALID_COMMAND", "Return to base before upgrading storage.", 400);
+      }
+
+      await applyPassiveAccrual(tx, player.id);
+
+      const [base] = await tx.select().from(bases).where(eq(bases.playerId, player.id)).for("update").limit(1);
+      if (!base) {
+        throw new GameError("PLAYER_NOT_PROVISIONED", "Base is not ready.", 409);
+      }
+      if (base.storageLevel >= balanceV1.economy.upgrades.storage.maxLevel) {
+        throw new GameError("INVALID_COMMAND", "Storage is already at maximum level.", 400);
+      }
+
+      const cost = storageUpgradeMetalCost(base.storageLevel);
+      if (cost === null) {
+        throw new GameError("INVALID_COMMAND", "Storage is already at maximum level.", 400);
+      }
+      const [resources] = await tx
+        .select()
+        .from(playerResources)
+        .where(eq(playerResources.playerId, player.id))
+        .for("update")
+        .limit(1);
+      if (!resources || resources.metal < cost) {
+        throw new GameError("INSUFFICIENT_METAL", "Not enough Metal to upgrade storage.", 400);
+      }
+
+      await tx
+        .update(playerResources)
+        .set({
+          metal: resources.metal - cost,
+          updatedAt: new Date(),
+          version: resources.version + 1,
+        })
+        .where(eq(playerResources.playerId, player.id));
+      await tx
+        .update(bases)
+        .set({
+          storageLevel: base.storageLevel + 1,
+          updatedAt: new Date(),
+          version: base.version + 1,
+        })
+        .where(eq(bases.id, base.id));
+
+      const snapshot = await loadSnapshot(tx, player.id);
+      const caps = storageCaps(base.storageLevel + 1);
+      const payload = {
+        player: snapshot,
+        storage: { level: base.storageLevel + 1, metalSpent: cost, energyCap: caps.energyCap, metalCap: caps.metalCap },
+      };
+      await tx.insert(gameActions).values({
+        id: createId(),
+        playerId: player.id,
+        actionKey: actionId,
+        actionType: "UPGRADE_STORAGE",
+        status: "COMPLETED",
+        resultCode: "OK",
+        resultPayload: payload,
+        completedAt: new Date(),
+      }).onConflictDoNothing({ target: [gameActions.playerId, gameActions.actionKey] });
+      return payload;
+    });
+    logEvent({ event: "storage.upgraded", authUserId, actionId, amount: result.storage.metalSpent });
+    return result;
+  } catch (error) {
+    logEvent({
+      event: "storage.upgrade.failed",
       authUserId,
       actionId,
       code: isGameError(error) ? error.code : "INTERNAL_GAME_ERROR",

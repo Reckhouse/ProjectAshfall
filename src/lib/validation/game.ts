@@ -26,6 +26,12 @@ export const CLIENT_OWNED_STATE_KEYS = [
   "defenderCasualties",
   "battle",
   "seed",
+  "energyCap",
+  "metalCap",
+  "storageLevel",
+  "loot",
+  "energyLooted",
+  "metalLooted",
 ] as const;
 
 export function rejectClientOwnedState(body: unknown): void {
@@ -108,6 +114,17 @@ export const clearCaveCommandSchema = z
     payload: z
       .object({
         caveId: z.uuid(),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const raidCommandSchema = z
+  .object({
+    actionId: z.uuid(),
+    payload: z
+      .object({
+        targetBaseId: z.uuid(),
       })
       .strict(),
   })

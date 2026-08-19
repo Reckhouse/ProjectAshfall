@@ -94,6 +94,26 @@ export function productionRates(baseLevel: number): { energyPerHour: number; met
   };
 }
 
+export function storageCaps(storageLevel: number): { energyCap: number; metalCap: number } {
+  const maxLevel = balanceV1.economy.upgrades.storage.maxLevel;
+  const level = Math.min(maxLevel, Math.max(1, Math.trunc(storageLevel) || 1));
+  const energyCaps = balanceV1.economy.upgrades.storage.energyCapByLevel;
+  const metalCaps = balanceV1.economy.upgrades.storage.metalCapByLevel;
+  return {
+    energyCap: energyCaps[level as keyof typeof energyCaps] ?? balanceV1.economy.passive.energyCap,
+    metalCap: metalCaps[level as keyof typeof metalCaps] ?? balanceV1.economy.passive.metalCap,
+  };
+}
+
+export function storageUpgradeMetalCost(currentLevel: number): number | null {
+  if (currentLevel >= balanceV1.economy.upgrades.storage.maxLevel) {
+    return null;
+  }
+  const costs = balanceV1.economy.upgrades.storage.metalCostByFromLevel;
+  const cost = costs[currentLevel as keyof typeof costs];
+  return typeof cost === "number" ? cost : null;
+}
+
 export function baseUpgradeMetalCost(currentLevel: number): number | null {
   if (currentLevel >= balanceV1.economy.upgrades.base.maxLevel) {
     return null;

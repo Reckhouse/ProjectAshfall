@@ -7,7 +7,7 @@ import { balanceV1 } from "@/game/config/balance.v1";
 import { chunkCoord, decodeTerrainKind } from "@/game/world/chunks";
 import { directionBetween } from "@/game/world/directions";
 import { pickGatherCave } from "@/game/world/caves";
-import { baseUpgradeMetalCost, pickGatherNode } from "@/game/world/nodes";
+import { baseUpgradeMetalCost, chebyshevDistance, pickGatherNode, storageUpgradeMetalCost } from "@/game/world/nodes";
 import { LogoutButton } from "@/components/game/LogoutButton";
 import { TileStage } from "@/components/game/TileStage";
 import {
@@ -28,6 +28,8 @@ type CommandResponse = {
   cave?: { id: string; tier: number };
   tool?: { affinity: "ENERGY" | "METAL"; tier: number; bonusBps: number; equipped: boolean };
   recruited?: { unitType: "OFFENSE" | "DEFENSE"; count: number; metalSpent: number };
+  storage?: { level: number; metalSpent: number; energyCap: number; metalCap: number };
+  loot?: { energy: number; metal: number };
   battle?: {
     outcome: "ATTACKER_WIN" | "DEFENDER_WIN";
     summary: string;
@@ -410,6 +412,55 @@ export function GameShell({
     }
   }, [announce, sendCommand]);
 
+  const upgradeStorage = useCallback(async () => {
+    const next = await sendCommand("/api/game/upgrade-storage", { actionId: newActionId() });
+    if (next?.storage && next.player?.location) {
+      announce(
+        `Storage upgraded to level ${next.storage.level}. Caps ${next.storage.energyCap} Energy / ${next.storage.metalCap} Metal.`,
+        sceneAt(viewRef.current, next.player, next.player.location.x, next.player.location.y, { base: true }),
+      );
+    }
+  }, [announce, sendCommand]);
+
+  const raidBase = useCallback(
+    async (targetBaseId: string, target?: { x: number; y: number }) => {
+      const next = await sendCommand("/api/game/raid", {
+        actionId: newActionId(),
+        payload: { targetBaseId },
+      });
+      if (next?.player && next.battle) {
+        announce(
+          next.battle.summary,
+          target
+            ? sceneAt(viewRef.current, next.player, target.x, target.y, { base: true })
+            : sceneAt(viewRef.current, next.player, next.player.location?.x ?? 0, next.player.location?.y ?? 0, { base: true }),
+        );
+      }
+    },
+    [announce, sendCommand],
+  );
+
+  const raidNearest = useCallback(async () => {
+    if (!location) {
+      announce("No field location to raid from.");
+      return;
+    }
+    const targets = (view?.bases ?? [])
+      .filter((base) => !base.owned)
+      .filter((base) => chebyshevDistance(location, base) <= balanceV1.pvp.raidChebyshevRange)
+      .sort((left, right) => chebyshevDistance(location, left) - chebyshevDistance(location, right) || left.id.localeCompare(right.id));
+    const target = targets[0];
+    if (!target) {
+      announce("Move adjacent to another commander's base to raid.");
+      return;
+    }
+    if (target.protected) {
+      announce("That commander is still under new-player protection.");
+      return;
+    }
+    await raidBase(target.id, target);
+  }, [announce, location, raidBase, view?.bases]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
@@ -429,6 +480,13 @@ export function GameShell({
         }
         return;
       }
+      if (event.key === "r" || event.key === "R") {
+        event.preventDefault();
+        if (!event.repeat) {
+          void raidNearest();
+        }
+        return;
+      }
       const direction = KEY_TO_DIRECTION[event.key];
       if (!direction) {
         return;
@@ -438,7 +496,7 @@ export function GameShell({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [clearNearestCave, gatherNearest, move]);
+  }, [clearNearestCave, gatherNearest, move, raidNearest]);
 
   const radius = balanceV1.movement.viewportRadius;
   const tiles = useMemo(() => {
@@ -453,7 +511,7 @@ export function GameShell({
         const kind = terrainAt(view, x, y);
         const adjacent = directionBetween(location, { x, y });
         const ownBase = Boolean(player.base && player.base.x === x && player.base.y === y);
-        const otherBase = Boolean(view?.bases.some((base) => base.x === x && base.y === y && !base.owned));
+        const other = view?.bases.find((base) => base.x === x && base.y === y && !base.owned) ?? null;
         const passable = kind === "plains" || kind === "ash";
         const node = view?.nodes.find((entry) => entry.x === x && entry.y === y && entry.remaining > 0) ?? null;
         const cave = view?.caves?.find((entry) => entry.x === x && entry.y === y && !entry.cleared) ?? null;
@@ -466,7 +524,9 @@ export function GameShell({
           kind,
           adjacent,
           ownBase,
-          otherBase,
+          otherBase: Boolean(other),
+          otherBaseId: other?.id ?? null,
+          otherProtected: Boolean(other?.protected),
           passable,
           isPlayer: dx === 0 && dy === 0,
           node,
@@ -485,6 +545,10 @@ export function GameShell({
     }
     if (tile.cave && tile.collectRange) {
       await clearCave(tile.cave.id);
+      return;
+    }
+    if (tile.otherBaseId && tile.collectRange) {
+      await raidBase(tile.otherBaseId, { x: tile.x, y: tile.y });
       return;
     }
     if (!tile.adjacent) {
@@ -524,13 +588,15 @@ export function GameShell({
           />
           <StatusRow
             label="Energy"
-            value={player.resources ? String(player.resources.energy) : "—"}
+            value={player.resources ? `${player.resources.energy} / ${player.resources.energyCap}` : "—"}
             tone="energy"
+            testId="energy-stock"
           />
           <StatusRow
             label="Metal"
-            value={player.resources ? String(player.resources.metal) : "—"}
+            value={player.resources ? `${player.resources.metal} / ${player.resources.metalCap}` : "—"}
             tone="metal"
+            testId="metal-stock"
           />
           <StatusRow
             label="Production"
@@ -541,6 +607,11 @@ export function GameShell({
             }
           />
           <StatusRow label="Base level" value={player.base ? String(player.base.level) : "—"} testId="base-level" />
+          <StatusRow
+            label="Storage"
+            value={player.base ? String(player.base.storageLevel) : "—"}
+            testId="storage-level"
+          />
           <StatusRow
             label="Energy tool"
             value={formatTool(player.tools?.energy ?? null)}
@@ -628,6 +699,23 @@ export function GameShell({
                 Upgrade base · {baseUpgradeMetalCost(player.base.level)} Metal
               </button>
             ) : null}
+            {location?.type === "BASE" &&
+            player.base &&
+            player.base.storageLevel < balanceV1.economy.upgrades.storage.maxLevel ? (
+              <button
+                type="button"
+                data-testid="upgrade-storage"
+                onClick={() => void upgradeStorage()}
+                disabled={
+                  pending ||
+                  (player.resources?.metal ?? 0) <
+                    (storageUpgradeMetalCost(player.base.storageLevel) ?? Number.POSITIVE_INFINITY)
+                }
+                className="min-h-11 border border-[var(--ash-beige)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+              >
+                Upgrade storage · {storageUpgradeMetalCost(player.base.storageLevel)} Metal
+              </button>
+            ) : null}
             {location?.type === "FIELD" && onOwnBase ? (
               <button
                 type="button"
@@ -647,6 +735,15 @@ export function GameShell({
               className="min-h-11 border border-[var(--ash-energy)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
             >
               Gather · G
+            </button>
+            <button
+              type="button"
+              data-testid="raid-base"
+              onClick={() => void raidNearest()}
+              disabled={pending || !location || location.type !== "FIELD"}
+              className="min-h-11 border border-[var(--ash-danger)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+            >
+              Raid · R
             </button>
             <button
               type="button"
@@ -684,7 +781,12 @@ export function GameShell({
                 .filter(Boolean)
                 .join(" ");
               const label = `${tile.x}, ${tile.y}${tile.kind ? ` ${tile.kind}` : " unknown"}${tile.node ? ` ${tile.node.resourceType}` : ""}${tile.cave ? " cave" : ""}`;
-              const clickable = Boolean(tile.adjacent || (tile.node && tile.collectRange) || (tile.cave && tile.collectRange));
+              const clickable = Boolean(
+                tile.adjacent ||
+                  (tile.node && tile.collectRange) ||
+                  (tile.cave && tile.collectRange) ||
+                  (tile.otherBaseId && tile.collectRange),
+              );
               return (
                 <button
                   key={`${tile.x}:${tile.y}`}
@@ -703,6 +805,8 @@ export function GameShell({
                   data-node-id={tile.node?.id}
                   data-node-type={tile.node?.resourceType}
                   data-cave-id={tile.cave?.id}
+                  data-raid-base-id={tile.otherBaseId ?? undefined}
+                  data-raid-protected={tile.otherProtected ? "true" : "false"}
                   onClick={() => void onTileClick(tile)}
                 >
                   {tile.isPlayer
@@ -715,13 +819,17 @@ export function GameShell({
                         ? "C"
                         : tile.ownBase
                           ? "⌂"
+                          : tile.otherBase
+                            ? tile.otherProtected
+                              ? "P"
+                              : "R"
                           : ""}
                 </button>
               );
             })}
           </div>
           <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[var(--ash-muted)]">
-            WASD / arrows move · G gathers · C clears caves
+            WASD / arrows move · G gathers · C caves · R raids
           </p>
         </section>
       </section>

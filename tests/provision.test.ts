@@ -18,6 +18,7 @@ describe("player provisioning", () => {
     expect(snapshot.base).toEqual(
       expect.objectContaining({
         status: "ESTABLISHED",
+        storageLevel: 1,
         x: expect.any(Number),
         y: expect.any(Number),
       }),
@@ -25,6 +26,8 @@ describe("player provisioning", () => {
     expect(snapshot.resources).toEqual({
       energy: balanceV1.startingResources.energy,
       metal: balanceV1.startingResources.metal,
+      energyCap: balanceV1.economy.passive.energyCap,
+      metalCap: balanceV1.economy.passive.metalCap,
       energyPerHour: balanceV1.economy.passive.energyPerHour,
       metalPerHour: balanceV1.economy.passive.metalPerHour,
     });

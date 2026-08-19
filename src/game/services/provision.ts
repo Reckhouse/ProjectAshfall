@@ -9,7 +9,7 @@ import { logEvent } from "@/lib/logging";
 import { applyPassiveAccrual } from "@/game/services/accrual";
 import { allocateBaseSpawn } from "@/game/services/spawn";
 import { ensureStartingTroops, loadTroopSnapshot } from "@/game/services/troop-state";
-import { productionRates } from "@/game/world/nodes";
+import { productionRates, storageCaps } from "@/game/world/nodes";
 import { createCryptoRng } from "@/game/world/rng";
 
 function toWorldView(world: typeof worlds.$inferSelect): WorldView {
@@ -65,12 +65,14 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
           y: base.y,
           status: "ESTABLISHED",
           level: base.level,
+          storageLevel: base.storageLevel,
         }
       : null,
     resources: resources
       ? {
           energy: resources.energy,
           metal: resources.metal,
+          ...storageCaps(base?.storageLevel ?? 1),
           ...productionRates(base?.level ?? 1),
         }
       : null,

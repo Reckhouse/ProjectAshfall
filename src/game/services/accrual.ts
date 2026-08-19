@@ -1,8 +1,7 @@
 import { eq } from "drizzle-orm";
 import { bases, playerResources } from "@/db/schema";
 import type { AppDb, AppTx } from "@/db/types";
-import { balanceV1 } from "@/game/config/balance.v1";
-import { accruedUnits, productionRates } from "@/game/world/nodes";
+import { accruedUnits, productionRates, storageCaps } from "@/game/world/nodes";
 import { logEvent } from "@/lib/logging";
 
 export async function applyPassiveAccrual(tx: AppTx | AppDb, playerId: string, now = new Date()): Promise<void> {
@@ -17,18 +16,19 @@ export async function applyPassiveAccrual(tx: AppTx | AppDb, playerId: string, n
   }
   const [base] = await tx.select().from(bases).where(eq(bases.playerId, playerId)).limit(1);
   const rates = productionRates(base?.level ?? 1);
+  const caps = storageCaps(base?.storageLevel ?? 1);
   const energy = accruedUnits({
     lastAccruedAt: resources.energyAccruedAt,
     perHour: rates.energyPerHour,
     current: resources.energy,
-    cap: balanceV1.economy.passive.energyCap,
+    cap: caps.energyCap,
     now,
   });
   const metal = accruedUnits({
     lastAccruedAt: resources.metalAccruedAt,
     perHour: rates.metalPerHour,
     current: resources.metal,
-    cap: balanceV1.economy.passive.metalCap,
+    cap: caps.metalCap,
     now,
   });
   if (energy.earned === 0 && metal.earned === 0) {

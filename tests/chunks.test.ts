@@ -61,7 +61,7 @@ describe("chunks and terrain v1", () => {
     expect(view.chunks.length).toBe(9);
     expect(JSON.stringify(view)).not.toMatch(/seed/i);
     expect(view.player.x).toBe(snapshot.location?.x);
-    expect(view.bases.some((base) => base.owned && base.x === snapshot.base?.x && base.y === snapshot.base?.y)).toBe(
+    expect(view.bases.some((base) => base.owned && base.x === snapshot.base?.x && base.y === snapshot.base?.y && base.id)).toBe(
       true,
     );
     await client.close();

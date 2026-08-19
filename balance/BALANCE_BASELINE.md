@@ -86,7 +86,7 @@ Cave T5 -> Tool T4 60%, T5 40%
 
 ## Combat draft
 
-PvE cave combat uses a seeded integer resolver. PvP attacks are not in this phase.
+PvE cave combat uses a seeded integer resolver. PvP raids use the same resolver with the base defense modifier.
 
 ```yaml
 combat:
@@ -96,6 +96,26 @@ combat:
   cave_defense_units_per_tier: 1
   target_equal_cost_defender_win_rate_min: 0.55
   target_equal_cost_defender_win_rate_max: 0.60
+
+pvp:
+  new_player_protection_hours: 72
+  repeat_target_cooldown_hours: 8
+  raid_energy_cost: 40
+  loot_bps: 1200
+  energy_loot_cap: 120
+  metal_loot_cap: 180
+```
+
+## Storage draft
+
+```yaml
+storage:
+  level_1: { energy: 800, metal: 2200 }
+  level_2: { energy: 1400, metal: 3800 }
+  level_3: { energy: 2400, metal: 6500 }
+  level_4: { energy: 4000, metal: 11000 }
+  level_5: { energy: 6500, metal: 18000 }
+  metal_cost: [60, 160, 420, 1100]
 ```
 
 ## New-player PvP draft

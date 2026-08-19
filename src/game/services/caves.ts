@@ -255,6 +255,7 @@ export async function clearCave(
         actionKey: input.actionId,
         kind: "CAVE",
         caveId: cave.featureId,
+        defenderPlayerId: null,
         outcome: battle.outcome,
         seed: battle.seed,
         attackerCommitted: battle.attackerCommitted,
@@ -263,6 +264,8 @@ export async function clearCave(
         defenderCasualties: battle.defenderCasualties,
         attackerPower: battle.attackerPower,
         defenderPower: battle.defenderPower,
+        energyLooted: 0,
+        metalLooted: 0,
         report: battle,
       });
 

@@ -100,6 +100,14 @@ Before PvP release:
 - repeat-target anti-farming rules
 - attacker risk/cost
 
+Phase 7 implements:
+- 72-hour new-player protection
+- 8-hour repeat-target cooldown
+- loot limited to 12% of the current stockpile and a hard Energy/Metal cap
+- raids require an adjacent field expedition and cost Energy
+- empty garrisons still fight with a minimum base watch
+
+
 ## Snowball restrictions
 
 Avoid:

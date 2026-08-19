@@ -135,6 +135,7 @@ export const bases = pgTable(
     x: integer("x").notNull(),
     y: integer("y").notNull(),
     level: integer("level").notNull().default(1),
+    storageLevel: integer("storage_level").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -145,6 +146,7 @@ export const bases = pgTable(
   },
   (table) => [
     unique("bases_world_coord_unique").on(table.worldId, table.x, table.y),
+    check("bases_storage_level_check", sql`${table.storageLevel} >= 1`),
     index("bases_world_x_idx").on(table.worldId, table.x),
     index("bases_world_y_idx").on(table.worldId, table.y),
   ],
@@ -362,6 +364,7 @@ export const battleReports = pgTable(
     actionKey: text("action_key").notNull(),
     kind: text("kind").notNull(),
     caveId: uuid("cave_id").references(() => caves.featureId, { onDelete: "set null" }),
+    defenderPlayerId: uuid("defender_player_id").references(() => players.id, { onDelete: "set null" }),
     outcome: text("outcome").notNull(),
     seed: text("seed").notNull(),
     attackerCommitted: integer("attacker_committed").notNull(),
@@ -370,6 +373,8 @@ export const battleReports = pgTable(
     defenderCasualties: integer("defender_casualties").notNull(),
     attackerPower: integer("attacker_power").notNull(),
     defenderPower: integer("defender_power").notNull(),
+    energyLooted: integer("energy_looted").notNull().default(0),
+    metalLooted: integer("metal_looted").notNull().default(0),
     report: jsonb("report").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
@@ -377,14 +382,32 @@ export const battleReports = pgTable(
   },
   (table) => [
     unique("battle_reports_player_action_unique").on(table.playerId, table.actionKey),
-    check("battle_reports_kind_check", sql`${table.kind} in ('CAVE')`),
+    check("battle_reports_kind_check", sql`${table.kind} in ('CAVE', 'PVP')`),
     check("battle_reports_outcome_check", sql`${table.outcome} in ('ATTACKER_WIN', 'DEFENDER_WIN')`),
     check(
       "battle_reports_qty_check",
       sql`${table.attackerCommitted} >= 0 and ${table.defenderCommitted} >= 0
         and ${table.attackerCasualties} >= 0 and ${table.attackerCasualties} <= ${table.attackerCommitted}
-        and ${table.defenderCasualties} >= 0 and ${table.defenderCasualties} <= ${table.defenderCommitted}`,
+        and ${table.defenderCasualties} >= 0 and ${table.defenderCasualties} <= ${table.defenderCommitted}
+        and ${table.energyLooted} >= 0 and ${table.metalLooted} >= 0`,
     ),
     index("battle_reports_player_idx").on(table.playerId),
+  ],
+);
+
+export const raidCooldowns = pgTable(
+  "raid_cooldowns",
+  {
+    attackerPlayerId: uuid("attacker_player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    defenderPlayerId: uuid("defender_player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    lastRaidAt: timestamp("last_raid_at", { withTimezone: true, mode: "date" }).notNull(),
+  },
+  (table) => [
+    unique("raid_cooldowns_pair_unique").on(table.attackerPlayerId, table.defenderPlayerId),
+    index("raid_cooldowns_defender_idx").on(table.defenderPlayerId),
   ],
 );

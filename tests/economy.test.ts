@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { playerResources, players, resourceNodes } from "@/db/schema";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError } from "@/game/domain/errors";
-import { collectResource, upgradeBase } from "@/game/services/economy";
+import { collectResource, upgradeBase, upgradeStorage } from "@/game/services/economy";
 import { applyPassiveAccrual } from "@/game/services/accrual";
 import { getVisibleChunks } from "@/game/services/chunks";
 import { ensurePlayerProvisioned } from "@/game/services/provision";
@@ -71,6 +71,9 @@ describe("economy", () => {
     const { db, client } = await setupIsolatedGameDb();
     const start = await ensurePlayerProvisioned(db, "eco-2", { rng: createSeededRng("eco-upgrade") });
     expect(start.base?.level).toBe(1);
+    expect(start.base?.storageLevel).toBe(1);
+    expect(start.resources?.energyCap).toBe(800);
+    expect(start.resources?.metalCap).toBe(2200);
     const upgraded = await upgradeBase(db, "eco-2", crypto.randomUUID());
     expect(upgraded.upgrade.level).toBe(2);
     expect(upgraded.upgrade.metalSpent).toBe(80);
@@ -128,6 +131,32 @@ describe("economy", () => {
     expect(upgraded.player.resources?.metal).toBe(0);
     await client.close();
   });
+
+  it("upgrades storage with escalating caps and Metal costs", async () => {
+    const { db, client } = await setupIsolatedGameDb();
+    const start = await ensurePlayerProvisioned(db, "eco-store", { rng: createSeededRng("eco-store") });
+    expect(start.resources?.energyCap).toBe(balanceV1.economy.upgrades.storage.energyCapByLevel[1]);
+    const first = await upgradeStorage(db, "eco-store", crypto.randomUUID());
+    expect(first.storage.level).toBe(2);
+    expect(first.storage.metalSpent).toBe(60);
+    expect(first.player.base?.storageLevel).toBe(2);
+    expect(first.player.resources?.energyCap).toBe(1400);
+    expect(first.player.resources?.metalCap).toBe(3800);
+    expect(first.player.resources?.metal).toBe(start.resources!.metal - 60);
+
+    await expect(upgradeStorage(db, "eco-store", crypto.randomUUID())).rejects.toMatchObject({
+      code: "INSUFFICIENT_METAL",
+    });
+
+    const [playerRow] = await db.select().from(players).where(eq(players.authUserId, "eco-store"));
+    await db.update(playerResources).set({ metal: 160 }).where(eq(playerResources.playerId, playerRow!.id));
+    const second = await upgradeStorage(db, "eco-store", crypto.randomUUID());
+    expect(second.storage.level).toBe(3);
+    expect(second.storage.metalSpent).toBe(160);
+    expect(second.player.resources?.energyCap).toBe(2400);
+    expect(second.player.resources?.metalCap).toBe(6500);
+    await client.close();
+  });
 });
 
 describe("economy simulation", () => {
@@ -177,6 +206,15 @@ describe("economy simulation", () => {
     expect(costToLevel5).toBeGreaterThan(tenMinuteMetalNodes * balanceV1.economy.nodes.metalYield * 10);
     expect(balanceV1.economy.passive.metalCap).toBeGreaterThanOrEqual(
       balanceV1.economy.upgrades.base.metalCostByFromLevel[4],
+    );
+    expect(balanceV1.economy.upgrades.storage.energyCapByLevel[5]).toBeGreaterThan(
+      balanceV1.economy.upgrades.storage.energyCapByLevel[4],
+    );
+    expect(balanceV1.economy.upgrades.storage.metalCapByLevel[5]).toBeGreaterThan(
+      balanceV1.economy.upgrades.storage.metalCapByLevel[3],
+    );
+    expect(balanceV1.economy.upgrades.storage.metalCostByFromLevel[4]).toBeGreaterThan(
+      balanceV1.economy.upgrades.storage.metalCostByFromLevel[1],
     );
   });
 });
