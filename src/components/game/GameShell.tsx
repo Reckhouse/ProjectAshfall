@@ -706,7 +706,7 @@ export function GameShell({
             })}
           </div>
           <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[var(--ash-muted)]">
-            WASD / arrows · G gather · C cave
+            WASD / arrows move · G gathers · C clears caves
           </p>
         </section>
       </section>
