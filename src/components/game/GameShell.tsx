@@ -88,11 +88,13 @@ function sceneAt(
   const otherBase = Boolean(view?.bases.some((base) => base.x === x && base.y === y && !base.owned));
   const liveNode = view?.nodes.find((entry) => entry.x === x && entry.y === y && entry.remaining > 0) ?? null;
   const liveCave = view?.caves?.find((entry) => entry.x === x && entry.y === y && !entry.cleared) ?? null;
+  const liveNodeType: ResourceKind | null =
+    liveNode?.resourceType === "ENERGY" || liveNode?.resourceType === "METAL" ? liveNode.resourceType : null;
   const art = resolveTileArt(
     resolveTileFeature({
       ownBase,
       otherBase,
-      nodeType: pin?.nodeType ?? liveNode?.resourceType ?? null,
+      nodeType: pin?.nodeType ?? liveNodeType,
       cave: pin?.cave ?? Boolean(liveCave),
       terrain: terrainAt(view, x, y),
     }),
