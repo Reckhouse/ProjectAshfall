@@ -586,11 +586,11 @@ export function GameShell({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-8 lg:px-8">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--ash-border)] pb-4">
+    <main className="mx-auto flex min-h-dvh w-full max-w-7xl flex-col px-4 py-4 lg:h-dvh lg:overflow-hidden lg:px-8">
+      <header className="flex shrink-0 flex-wrap items-end justify-between gap-4 border-b border-[var(--ash-border)] pb-3">
         <div>
           <p className="ash-label">Command shell</p>
-          <h1 className="mt-2 text-3xl font-semibold text-[var(--ash-beige)]">PROJECT ASHFALL</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-[var(--ash-beige)]">PROJECT ASHFALL</h1>
         </div>
         <div className="flex items-center gap-3">
           {isAdmin ? (
@@ -607,7 +607,7 @@ export function GameShell({
       </header>
 
       {!player.displayName ? (
-        <section className="ash-frame mt-6 p-5" data-testid="callsign-prompt">
+        <section className="ash-frame mt-3 shrink-0 p-4" data-testid="callsign-prompt">
           <p className="ash-label">Claim callsign</p>
           <p className="mt-2 text-sm text-[var(--ash-muted)]">
             Choose a name so nearby bunkers show who holds this base.
@@ -642,8 +642,11 @@ export function GameShell({
         </section>
       ) : null}
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)_minmax(14.5rem,16rem)] lg:items-start">
-        <aside className="ash-frame space-y-4 p-5" aria-label="Base status">
+      <section className="mt-3 grid min-h-0 flex-1 gap-4 lg:grid-cols-[16.5rem_minmax(0,1fr)_minmax(14.5rem,16rem)] lg:items-stretch lg:overflow-hidden">
+        <aside
+          className="ash-frame max-h-[min(22rem,46vh)] min-h-0 space-y-1 overflow-y-auto p-4 lg:max-h-none"
+          aria-label="Base status"
+        >
           <StatusRow label="Base status" value={player.base ? "ESTABLISHED" : "PENDING"} />
           <StatusRow
             label="Callsign"
@@ -718,128 +721,12 @@ export function GameShell({
             }
             testId="offense-troops"
           />
-          <div className="flex flex-col gap-2 pt-2">
-            {location?.type === "BASE" ? (
-              <>
-                <label className="ash-label flex items-center justify-between gap-3">
-                  Take offense
-                  <input
-                    ref={takeOffenseRef}
-                    type="number"
-                    min={0}
-                    max={offenseAtBase}
-                    defaultValue={offenseAtBase}
-                    key={`offense-${offenseAtBase}`}
-                    data-testid="offense-take"
-                    className="w-16 border border-[var(--ash-border)] bg-transparent px-2 py-1 text-right text-[var(--ash-text)]"
-                  />
-                </label>
-                <button
-                  type="button"
-                  data-testid="leave-base"
-                  onClick={() => void leaveBase()}
-                  disabled={pending}
-                  className="min-h-11 border border-[var(--ash-rust)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-                >
-                  Leave base
-                </button>
-                <button
-                  type="button"
-                  data-testid="recruit-offense"
-                  onClick={() => void recruit("OFFENSE")}
-                  disabled={pending || (player.resources?.metal ?? 0) < balanceV1.troops.recruitMetalCost.OFFENSE}
-                  className="min-h-11 border border-[var(--ash-metal)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-                >
-                  Recruit offense · {balanceV1.troops.recruitMetalCost.OFFENSE} Metal
-                </button>
-                <button
-                  type="button"
-                  data-testid="recruit-defense"
-                  onClick={() => void recruit("DEFENSE")}
-                  disabled={pending || (player.resources?.metal ?? 0) < balanceV1.troops.recruitMetalCost.DEFENSE}
-                  className="min-h-11 border border-[var(--ash-olive)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-                >
-                  Recruit defense · {balanceV1.troops.recruitMetalCost.DEFENSE} Metal
-                </button>
-              </>
-            ) : null}
-            {location?.type === "BASE" &&
-            player.base &&
-            player.base.level < balanceV1.economy.upgrades.base.maxLevel ? (
-              <button
-                type="button"
-                data-testid="upgrade-base"
-                onClick={() => void upgradeBase()}
-                disabled={
-                  pending ||
-                  (player.resources?.metal ?? 0) < (baseUpgradeMetalCost(player.base.level) ?? Number.POSITIVE_INFINITY)
-                }
-                className="min-h-11 border border-[var(--ash-metal)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-              >
-                Upgrade base · {baseUpgradeMetalCost(player.base.level)} Metal
-              </button>
-            ) : null}
-            {location?.type === "BASE" &&
-            player.base &&
-            player.base.storageLevel < balanceV1.economy.upgrades.storage.maxLevel ? (
-              <button
-                type="button"
-                data-testid="upgrade-storage"
-                onClick={() => void upgradeStorage()}
-                disabled={
-                  pending ||
-                  (player.resources?.metal ?? 0) <
-                    (storageUpgradeMetalCost(player.base.storageLevel) ?? Number.POSITIVE_INFINITY)
-                }
-                className="min-h-11 border border-[var(--ash-beige)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-              >
-                Upgrade storage · {storageUpgradeMetalCost(player.base.storageLevel)} Metal
-              </button>
-            ) : null}
-            {location?.type === "FIELD" && onOwnBase ? (
-              <button
-                type="button"
-                data-testid="enter-base"
-                onClick={() => void enterBase()}
-                disabled={pending}
-                className="min-h-11 border border-[var(--ash-olive)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-              >
-                Enter base
-              </button>
-            ) : null}
-            <button
-              type="button"
-              data-testid="gather-node"
-              onClick={() => void gatherNearest()}
-              disabled={pending || !location}
-              className="min-h-11 border border-[var(--ash-energy)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-            >
-              Gather · G
-            </button>
-            <button
-              type="button"
-              data-testid="raid-base"
-              onClick={() => void raidNearest()}
-              disabled={pending || !location || location.type !== "FIELD"}
-              className="min-h-11 border border-[var(--ash-danger)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-            >
-              Raid · R
-            </button>
-            <button
-              type="button"
-              data-testid="clear-cave"
-              onClick={() => void clearNearestCave()}
-              disabled={pending || !location}
-              className="min-h-11 border border-[var(--ash-olive)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
-            >
-              Clear cave · C
-            </button>
-          </div>
         </aside>
 
         <TileStage art={stage.art} heading={stage.heading} detail={stage.detail} result={feedback} />
 
-        <section className="ash-frame p-4" aria-label="Local map">
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+        <section className="ash-frame shrink-0 p-4" aria-label="Local map">
           <p className="ash-label mb-3">Local map</p>
           <div
             className="ash-world-grid"
@@ -925,6 +812,127 @@ export function GameShell({
             </ul>
           ) : null}
         </section>
+        <section className="ash-frame p-4" aria-label="Commands">
+          <p className="ash-label mb-3">Commands</p>
+          <div className="flex flex-col gap-2">
+            {location?.type === "BASE" ? (
+              <>
+                <label className="ash-label flex items-center justify-between gap-3">
+                  Take offense
+                  <input
+                    ref={takeOffenseRef}
+                    type="number"
+                    min={0}
+                    max={offenseAtBase}
+                    defaultValue={offenseAtBase}
+                    key={`offense-${offenseAtBase}`}
+                    data-testid="offense-take"
+                    className="w-16 border border-[var(--ash-border)] bg-transparent px-2 py-1 text-right text-[var(--ash-text)]"
+                  />
+                </label>
+                <button
+                  type="button"
+                  data-testid="leave-base"
+                  onClick={() => void leaveBase()}
+                  disabled={pending}
+                  className="min-h-10 border border-[var(--ash-rust)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+                >
+                  Leave base
+                </button>
+                <button
+                  type="button"
+                  data-testid="recruit-offense"
+                  onClick={() => void recruit("OFFENSE")}
+                  disabled={pending || (player.resources?.metal ?? 0) < balanceV1.troops.recruitMetalCost.OFFENSE}
+                  className="min-h-10 border border-[var(--ash-metal)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+                >
+                  Recruit offense · {balanceV1.troops.recruitMetalCost.OFFENSE} Metal
+                </button>
+                <button
+                  type="button"
+                  data-testid="recruit-defense"
+                  onClick={() => void recruit("DEFENSE")}
+                  disabled={pending || (player.resources?.metal ?? 0) < balanceV1.troops.recruitMetalCost.DEFENSE}
+                  className="min-h-10 border border-[var(--ash-olive)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+                >
+                  Recruit defense · {balanceV1.troops.recruitMetalCost.DEFENSE} Metal
+                </button>
+              </>
+            ) : null}
+            {location?.type === "BASE" &&
+            player.base &&
+            player.base.level < balanceV1.economy.upgrades.base.maxLevel ? (
+              <button
+                type="button"
+                data-testid="upgrade-base"
+                onClick={() => void upgradeBase()}
+                disabled={
+                  pending ||
+                  (player.resources?.metal ?? 0) < (baseUpgradeMetalCost(player.base.level) ?? Number.POSITIVE_INFINITY)
+                }
+                className="min-h-10 border border-[var(--ash-metal)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+              >
+                Upgrade base · {baseUpgradeMetalCost(player.base.level)} Metal
+              </button>
+            ) : null}
+            {location?.type === "BASE" &&
+            player.base &&
+            player.base.storageLevel < balanceV1.economy.upgrades.storage.maxLevel ? (
+              <button
+                type="button"
+                data-testid="upgrade-storage"
+                onClick={() => void upgradeStorage()}
+                disabled={
+                  pending ||
+                  (player.resources?.metal ?? 0) <
+                    (storageUpgradeMetalCost(player.base.storageLevel) ?? Number.POSITIVE_INFINITY)
+                }
+                className="min-h-10 border border-[var(--ash-beige)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+              >
+                Upgrade storage · {storageUpgradeMetalCost(player.base.storageLevel)} Metal
+              </button>
+            ) : null}
+            {location?.type === "FIELD" && onOwnBase ? (
+              <button
+                type="button"
+                data-testid="enter-base"
+                onClick={() => void enterBase()}
+                disabled={pending}
+                className="min-h-10 border border-[var(--ash-olive)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+              >
+                Enter base
+              </button>
+            ) : null}
+            <button
+              type="button"
+              data-testid="gather-node"
+              onClick={() => void gatherNearest()}
+              disabled={pending || !location}
+              className="min-h-10 border border-[var(--ash-energy)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+            >
+              Gather · G
+            </button>
+            <button
+              type="button"
+              data-testid="raid-base"
+              onClick={() => void raidNearest()}
+              disabled={pending || !location || location.type !== "FIELD"}
+              className="min-h-10 border border-[var(--ash-danger)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+            >
+              Raid · R
+            </button>
+            <button
+              type="button"
+              data-testid="clear-cave"
+              onClick={() => void clearNearestCave()}
+              disabled={pending || !location}
+              className="min-h-10 border border-[var(--ash-olive)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)] disabled:opacity-60"
+            >
+              Clear cave · C
+            </button>
+          </div>
+        </section>
+        </div>
       </section>
     </main>
   );
@@ -956,7 +964,7 @@ function StatusRow({
         : "text-[var(--ash-text)]";
 
   return (
-    <div className="flex items-baseline justify-between gap-6 border-b border-[var(--ash-border)]/60 pb-3">
+    <div className="flex items-baseline justify-between gap-3 border-b border-[var(--ash-border)]/60 py-2">
       <span className="ash-label">{label}</span>
       <span className={`ash-value ${valueClass}`} data-testid={testId}>
         {value}

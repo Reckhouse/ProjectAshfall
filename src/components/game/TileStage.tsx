@@ -16,9 +16,9 @@ export function TileStage({
   const meta = TILE_ART[art];
 
   return (
-    <section className="ash-frame flex min-h-0 flex-col p-4" aria-label="Active tile">
-      <p className="ash-label mb-3">Active tile</p>
-      <div className="ash-tile-stage" data-testid="tile-stage">
+    <section className="ash-frame flex h-full min-h-0 flex-col p-4" aria-label="Active tile">
+      <p className="ash-label mb-3 shrink-0">Active tile</p>
+      <div className="ash-tile-stage mx-auto min-h-0 w-full flex-1" data-testid="tile-stage">
         {/* Static WebP from /public; native img avoids optimizer/hydration delay on the command shell. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={meta.src} alt={meta.alt} width={1024} height={1024} className="h-full w-full object-cover" />
@@ -28,7 +28,7 @@ export function TileStage({
         </div>
       </div>
       <p
-        className="mt-4 min-h-6 text-sm text-[var(--ash-beige)]"
+        className="mt-3 min-h-6 shrink-0 text-sm text-[var(--ash-beige)]"
         data-testid="command-feedback"
         aria-live="polite"
       >
