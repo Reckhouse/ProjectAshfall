@@ -138,6 +138,9 @@ export async function loadWorldStandings(
   const viewerIndex = ranked.findIndex((row) => row.authUserId === viewerAuthUserId);
   const you =
     viewerIndex >= 0 ? toEntry(ranked[viewerIndex]!, viewerIndex + 1, viewerAuthUserId) : null;
+  if (you && !board.some((row) => row.you)) {
+    board.push(you);
+  }
 
   const attacker = alias(players, "standing_attacker");
   const defender = alias(players, "standing_defender");

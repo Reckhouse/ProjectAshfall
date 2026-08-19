@@ -71,6 +71,9 @@ describe("world standings", () => {
     expect(standings.board.map((row) => row.callsign)).toEqual(["AshBravo", "AshAlpha"]);
     expect(standings.board[0]).toMatchObject({ rank: 1, callsign: "AshBravo", you: false, baseLevel: 4 });
     expect(standings.you).toMatchObject({ rank: 2, callsign: "AshAlpha", you: true });
+    const limited = await loadWorldStandings(db, { viewerAuthUserId: "stand-a", boardLimit: 1 });
+    expect(limited.board.map((row) => row.callsign)).toEqual(["AshBravo", "AshAlpha"]);
+    expect(limited.board[1]).toMatchObject({ you: true, rank: 2 });
     expect(standings.board[0]).not.toHaveProperty("playerId");
     expect(standings.board[0]).not.toHaveProperty("x");
     expect(standings.board[0]).not.toHaveProperty("energy");
