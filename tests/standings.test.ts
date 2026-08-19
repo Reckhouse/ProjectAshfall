@@ -36,6 +36,7 @@ describe("standing score", () => {
       authUserId: "a",
       callsign: "Zulu",
       kind: "HUMAN" as const,
+      allianceTag: null,
       baseLevel: 1,
       storageLevel: 1,
       raidWins: 2,
