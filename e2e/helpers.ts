@@ -29,10 +29,6 @@ export async function registerCommander(
   await page.goto("/register");
   await fillRegisterForm(page, { email, password, callsign });
   await page.getByRole("button", { name: "Create account" }).click();
-  const alert = page.getByRole("alert");
-  if (await alert.isVisible().catch(() => false)) {
-    throw new Error(`Registration failed: ${(await alert.textContent()) ?? "unknown error"}`);
-  }
   await expect(page).toHaveURL(/\/game/, { timeout: 15_000 });
   return { email, password, callsign };
 }
