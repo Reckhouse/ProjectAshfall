@@ -17,7 +17,7 @@ function clientKey(request: Request): string {
 
 export async function POST(request: Request) {
   try {
-    if (!consumeRateLimit(`auth:register:${clientKey(request)}`, 8, 10 * 60 * 1000)) {
+    if (!consumeRateLimit(`auth:register:${clientKey(request)}`, 30, 10 * 60 * 1000)) {
       throw new GameError("RATE_LIMITED", "Too many account attempts. Wait and try again.", 429);
     }
 
