@@ -21,8 +21,8 @@ test("register provisions a base that survives refresh, logout, and login", asyn
   await expect(coordinate).toHaveText(/^\d+, \d+$/);
   const firstCoordinate = (await coordinate.textContent())?.trim();
   expect(firstCoordinate).toMatch(/^\d+, \d+$/);
-  await expect(page.getByText("250")).toBeVisible();
-  await expect(page.getByText("150")).toBeVisible();
+  await expect(page.getByTestId("energy-stock")).toContainText("250 /");
+  await expect(page.getByTestId("metal-stock")).toContainText("150 /");
 
   await page.reload();
   await expect(page.getByTestId("base-coord")).toHaveText(firstCoordinate!);

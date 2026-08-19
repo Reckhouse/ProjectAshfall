@@ -1,7 +1,10 @@
 import { expect, type Page } from "@playwright/test";
 
 export function uniqueCallsign(prefix = "Ash"): string {
-  return `${prefix}${String(Date.now()).slice(-8)}`.slice(0, 16);
+  const token = Date.now()
+    .toString(36)
+    .replace(/[0-9]/g, (digit) => String.fromCharCode(97 + Number(digit)));
+  return `${prefix}${token}`.slice(0, 16);
 }
 
 export async function fillRegisterForm(
