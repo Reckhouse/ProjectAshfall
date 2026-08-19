@@ -27,6 +27,7 @@ test("leave base, move, refresh the same coordinate, and return", async ({ page 
   expect(fieldCoordinate).toMatch(/^\d+, \d+$/);
 
   await page.reload();
+  await expect(page.locator("html[data-ash-ready='true']")).toBeAttached();
   await expect(page.getByTestId("location-type")).toHaveText("FIELD");
   await expect(page.getByTestId("player-coord")).toHaveText(fieldCoordinate!);
 

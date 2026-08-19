@@ -135,6 +135,11 @@ export function GameShell({
     viewRef.current = view;
   }, [view]);
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-ash-ready", "true");
+    return () => document.documentElement.removeAttribute("data-ash-ready");
+  }, []);
+
   const announce = useCallback((message: string, nextStage?: TileStageView) => {
     setFeedback(message);
     if (nextStage) {
@@ -488,7 +493,7 @@ export function GameShell({
         <LogoutButton />
       </header>
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)_minmax(12.5rem,13.5rem)] lg:items-start">
+      <section className="mt-6 grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)_minmax(14.5rem,16rem)] lg:items-start">
         <aside className="ash-frame space-y-4 p-5" aria-label="Base status">
           <StatusRow label="Base status" value={player.base ? "ESTABLISHED" : "PENDING"} />
           <StatusRow label="World" value={(player.world ?? "UNKNOWN").toUpperCase()} />
@@ -653,7 +658,7 @@ export function GameShell({
             className="ash-world-grid"
             role="grid"
             data-testid="world-grid"
-            style={{ gridTemplateColumns: `repeat(${radius * 2 + 1}, minmax(0.85rem, 1fr))` }}
+            style={{ gridTemplateColumns: `repeat(${radius * 2 + 1}, minmax(1.05rem, 1fr))` }}
           >
             {tiles.map((tile) => {
               const className = [

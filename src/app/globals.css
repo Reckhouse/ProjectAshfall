@@ -85,8 +85,7 @@ a {
 
 .ash-world-grid {
   display: grid;
-  width: min(18rem, 100%);
-  max-width: 13.5rem;
+  width: min(16rem, 100%);
   margin-inline: auto;
   gap: 1px;
   background: #0b0b09;
@@ -96,10 +95,11 @@ a {
 
 .ash-tile {
   aspect-ratio: 1;
-  min-height: 0.95rem;
+  width: 100%;
+  min-height: 1.15rem;
   border: 1px solid transparent;
   color: var(--ash-beige);
-  font-size: 0.55rem;
+  font-size: 0.58rem;
   line-height: 1;
   padding: 0;
 }
