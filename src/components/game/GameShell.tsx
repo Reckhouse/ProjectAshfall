@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Direction, PlayerSnapshot, ResourceKind, TerrainKind } from "@/game/domain/types";
+import type { Direction, PlayerSnapshot, ResourceKind, StandingEntry, TerrainKind, WorldStandings } from "@/game/domain/types";
 import type { VisibleWorldView } from "@/game/services/chunks";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { chunkCoord, decodeTerrainKind } from "@/game/world/chunks";
@@ -137,13 +137,19 @@ export function GameShell({
   player: initialPlayer,
   initialView,
   isAdmin = false,
+  standing: initialStanding = null,
+  commanderCount: initialCommanderCount = 0,
 }: {
   player: PlayerSnapshot;
   initialView: VisibleWorldView | null;
   isAdmin?: boolean;
+  standing?: StandingEntry | null;
+  commanderCount?: number;
 }) {
   const [player, setPlayer] = useState(initialPlayer);
   const [view, setView] = useState<VisibleWorldView | null>(initialView);
+  const [standing, setStanding] = useState(initialStanding);
+  const [commanderCount, setCommanderCount] = useState(initialCommanderCount);
   const [feedback, setFeedback] = useState("Command channel open.");
   const [stage, setStage] = useState<TileStageView>(() => {
     const loc = initialPlayer.location;
@@ -264,6 +270,12 @@ export function GameShell({
     const next = await sendCommand("/api/game/callsign", { callsign: callsignDraft.trim() });
     if (next?.player?.displayName) {
       announce(`Callsign locked: ${next.player.displayName}.`);
+      const response = await fetch("/api/game/standings");
+      const data = (await response.json()) as { standings?: WorldStandings };
+      if (data.standings) {
+        setStanding(data.standings.you);
+        setCommanderCount(data.standings.commanderCount);
+      }
     }
   }, [announce, callsignDraft, sendCommand]);
 
@@ -593,6 +605,13 @@ export function GameShell({
           <h1 className="mt-1 text-2xl font-semibold text-[var(--ash-beige)]">PROJECT ASHFALL</h1>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/standings"
+            data-testid="standings-link"
+            className="min-h-11 border border-[var(--ash-border)] px-4 py-2 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)]"
+          >
+            Standings
+          </Link>
           {isAdmin ? (
             <Link
               href="/admin"
@@ -652,6 +671,17 @@ export function GameShell({
             label="Callsign"
             value={player.displayName ?? "UNCLAIMED"}
             testId="player-callsign"
+          />
+          <StatusRow
+            label="World rank"
+            value={
+              standing
+                ? `#${standing.rank} / ${commanderCount} · ${standing.score}`
+                : commanderCount > 0
+                  ? "UNRANKED"
+                  : "—"
+            }
+            testId="world-rank"
           />
           <StatusRow label="World" value={(player.world ?? "UNKNOWN").toUpperCase()} />
           <StatusRow

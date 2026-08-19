@@ -39,6 +39,34 @@ export type EquippedTool = {
   bonusBps: number;
 };
 
+export type StandingEntry = {
+  rank: number;
+  callsign: string;
+  kind: PlayerKind;
+  baseLevel: number;
+  storageLevel: number;
+  raidWins: number;
+  caveClears: number;
+  score: number;
+  you: boolean;
+};
+
+export type RaidIntel = {
+  id: string;
+  attacker: string;
+  defender: string | null;
+  outcome: "ATTACKER_WIN" | "DEFENDER_WIN";
+  createdAt: string;
+};
+
+export type WorldStandings = {
+  world: string;
+  commanderCount: number;
+  you: StandingEntry | null;
+  board: StandingEntry[];
+  intel: RaidIntel[];
+};
+
 export type PlayerSnapshot = {
   status: PlayerStatus;
   kind: PlayerKind;

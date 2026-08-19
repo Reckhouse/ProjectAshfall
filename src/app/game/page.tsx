@@ -8,6 +8,7 @@ import { chunkCoord } from "@/game/world/chunks";
 import { getVisibleChunks } from "@/game/services/chunks";
 import { maybeTickBotsInBackground } from "@/game/services/bots";
 import { ensurePlayerProvisioned } from "@/game/services/provision";
+import { loadWorldStandings } from "@/game/services/standings";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,5 +31,18 @@ export default async function GamePage() {
   after(() => {
     void maybeTickBotsInBackground(db).catch(() => undefined);
   });
-  return <GameShell player={player} initialView={initialView} isAdmin={isAdminUser(user)} />;
+  const standings = await loadWorldStandings(db, {
+    viewerAuthUserId: user.id,
+    boardLimit: 0,
+    includeIntel: false,
+  });
+  return (
+    <GameShell
+      player={player}
+      initialView={initialView}
+      isAdmin={isAdminUser(user)}
+      standing={standings.you}
+      commanderCount={standings.commanderCount}
+    />
+  );
 }

@@ -32,6 +32,10 @@ export const CLIENT_OWNED_STATE_KEYS = [
   "loot",
   "energyLooted",
   "metalLooted",
+  "rank",
+  "score",
+  "raidWins",
+  "caveClears",
 ] as const;
 
 export function rejectClientOwnedState(body: unknown): void {

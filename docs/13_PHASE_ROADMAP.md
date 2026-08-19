@@ -119,12 +119,16 @@ Exit:
 
 ## Phase 8 — Social/competitive systems
 
-Possible:
-- leaderboards
-- rankings
-- alliances
-- events
-- seasons
-- messaging
+Delivered first slice:
+- world standings from server-owned upgrades, raid wins, cave clears, and raid loot totals
+- personal rank in the command shell
+- public raid intel with callsigns only
+- no client-submitted scores, coordinates, stockpiles, or troop counts on the board
 
-Only add after the core economy and PvP are stable.
+Out of scope for this slice:
+- alliances
+- messaging / chat
+- seasons / world resets
+- events
+
+Only add those after this ranking surface is stable.

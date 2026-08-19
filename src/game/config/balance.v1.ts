@@ -130,6 +130,18 @@ export const balanceV1 = {
     metalLootCap: 180,
     minDefensePowerUnits: 1,
   },
+  rankings: {
+    boardLimit: 25,
+    intelLimit: 12,
+    weights: {
+      baseLevel: 100,
+      storageLevel: 40,
+      raidWin: 80,
+      caveClear: 20,
+      energyLoot: 1,
+      metalLoot: 1,
+    },
+  },
   bots: {
     maxActive: 40,
     minTickIntervalMs: 20_000,
