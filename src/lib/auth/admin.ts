@@ -9,11 +9,18 @@ export function isAdminEmail(email: string | null | undefined, source: NodeJS.Pr
   return getServerEnv(source).adminEmails.includes(email.trim().toLowerCase());
 }
 
+export function isAdminUser(user: AuthUser | null | undefined, source: NodeJS.ProcessEnv = process.env): boolean {
+  if (!user) {
+    return false;
+  }
+  return user.isAdmin || isAdminEmail(user.email, source);
+}
+
 export function assertAdmin(user: AuthUser | null): AuthUser {
   if (!user) {
     throw new GameError("AUTH_REQUIRED", "Sign in required.", 401);
   }
-  if (!isAdminEmail(user.email)) {
+  if (!isAdminUser(user)) {
     throw new GameError("ADMIN_REQUIRED", "Admin access is restricted.", 403);
   }
   return user;

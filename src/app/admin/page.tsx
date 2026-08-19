@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getDb } from "@/db/client";
 import { AdminPanel } from "@/components/admin/AdminPanel";
 import { loadAdminStats } from "@/game/services/admin-stats";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { isAdminUser } from "@/lib/auth/admin";
 import { getCurrentAuthUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export default async function AdminPage() {
   if (!user) {
     redirect("/login");
   }
-  if (!isAdminEmail(user.email)) {
+  if (!isAdminUser(user)) {
     redirect("/game");
   }
 

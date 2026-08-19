@@ -597,7 +597,7 @@ export function GameShell({
             <Link
               href="/admin"
               data-testid="admin-link"
-              className="min-h-11 border border-[var(--ash-border)] px-4 py-2 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)]"
+              className="min-h-11 border border-[var(--ash-rust)] px-4 py-2 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)]"
             >
               Admin
             </Link>
@@ -815,6 +815,15 @@ export function GameShell({
         <section className="ash-frame p-4" aria-label="Commands">
           <p className="ash-label mb-3">Commands</p>
           <div className="flex flex-col gap-2">
+            {isAdmin ? (
+              <Link
+                href="/admin"
+                data-testid="admin-command-link"
+                className="flex min-h-10 items-center justify-center border border-[var(--ash-rust)] px-3 text-sm uppercase tracking-[0.14em] text-[var(--ash-beige)]"
+              >
+                Admin panel
+              </Link>
+            ) : null}
             {location?.type === "BASE" ? (
               <>
                 <label className="ash-label flex items-center justify-between gap-3">

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createUserAccount } from "@/lib/auth/service";
 import { registerSchema } from "@/lib/validation/auth";
-import { getServerEnv } from "@/lib/env";
+import { getServerEnv, DEFAULT_ADMIN_EMAILS } from "@/lib/env";
 import { isUniqueViolation } from "@/game/services/spawn";
 import { GameError } from "@/game/domain/errors";
 import { setupIsolatedGameDb } from "./helpers/db";
@@ -41,6 +41,19 @@ describe("auth helpers", () => {
     });
     expect(env.isNeon).toBe(true);
     expect(env.authSecret.length).toBeGreaterThan(0);
+  });
+
+  it("keeps operator emails on the admin list outside test even when ADMIN_EMAILS is set", () => {
+    const env = getServerEnv({
+      NODE_ENV: "development",
+      ADMIN_EMAILS: "extra@ashfall.test",
+    });
+    expect(env.adminEmails).toEqual(expect.arrayContaining([...DEFAULT_ADMIN_EMAILS, "extra@ashfall.test"]));
+  });
+
+  it("does not grant default operator emails during tests unless listed", () => {
+    const env = getServerEnv({ NODE_ENV: "test" });
+    expect(env.adminEmails).toEqual([]);
   });
 
   it("detects unique violations wrapped by Drizzle/Neon cause chains", () => {

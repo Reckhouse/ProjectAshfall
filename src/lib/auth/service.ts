@@ -3,6 +3,7 @@ import { authUsers } from "@/db/schema";
 import type { AppDb } from "@/db/types";
 import { GameError } from "@/game/domain/errors";
 import { isUniqueViolation } from "@/game/services/spawn";
+import { isAdminEmail } from "@/lib/auth/admin";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { logEvent } from "@/lib/logging";
 
@@ -26,6 +27,7 @@ export async function createUserAccount(
       .values({
         email: input.email,
         passwordHash,
+        isAdmin: isAdminEmail(input.email),
       })
       .returning();
     if (!user) {

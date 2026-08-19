@@ -13,6 +13,7 @@ const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 export type AuthUser = {
   id: string;
   email: string;
+  isAdmin: boolean;
 };
 
 function cookieSettings(expires: Date) {
@@ -91,7 +92,7 @@ export async function getAuthUserByToken(db: AppDb, token: string | null): Promi
   }
 
   const [user] = await db.select().from(authUsers).where(eq(authUsers.id, session.userId)).limit(1);
-  return user ? { id: user.id, email: user.email } : null;
+  return user ? { id: user.id, email: user.email, isAdmin: user.isAdmin } : null;
 }
 
 export async function getCurrentAuthUser(db: AppDb): Promise<AuthUser | null> {

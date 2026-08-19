@@ -24,6 +24,7 @@ export const authUsers = pgTable("auth_users", {
   id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  isAdmin: boolean("is_admin").notNull().default(false),
   ...timestamps,
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
     .notNull()

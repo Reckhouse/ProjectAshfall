@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { GET as adminStatsGet } from "@/app/api/admin/stats/route";
 import { POST as adminBotsPost } from "@/app/api/admin/bots/route";
 import { POST as registerPost } from "@/app/api/auth/register/route";
 import { GET as cronBotsGet } from "@/app/api/cron/bots/route";
+import { getDb } from "@/db/client";
+import { authUsers } from "@/db/schema";
 import { SESSION_COOKIE } from "@/lib/auth/session";
 import { resetRateLimitsForTests } from "@/lib/security/rate-limit";
 
@@ -75,5 +78,19 @@ describe("admin security boundaries", () => {
 
     const cron = await cronBotsGet(new Request("http://localhost/api/cron/bots"));
     expect(cron.status).toBe(401);
+  });
+
+  it("grants admin when the account flag is set even if the email is not listed", async () => {
+    const registered = await registerAccount("flagged@ashfall.test", "Flagged");
+    expect(registered.status).toBe(201);
+    const db = await getDb();
+    await db.update(authUsers).set({ isAdmin: true }).where(eq(authUsers.email, "flagged@ashfall.test"));
+
+    const allowed = await adminStatsGet(
+      new Request("http://localhost/api/admin/stats", {
+        headers: { cookie: cookieFrom(registered) },
+      }),
+    );
+    expect(allowed.status).toBe(200);
   });
 });

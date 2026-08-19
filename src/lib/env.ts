@@ -13,7 +13,8 @@ const envSchema = z.object({
   CRON_SECRET: z.string().optional(),
 });
 
-const DEFAULT_ADMIN_EMAIL = "mthrun@uccs.edu";
+/** Operator accounts that always receive admin in non-test environments. */
+export const DEFAULT_ADMIN_EMAILS = ["mthrun@uccs.edu", "thrundawg@gmail.com"] as const;
 
 export type ServerEnv = {
   nodeEnv: "development" | "test" | "production";
@@ -32,13 +33,10 @@ function parseAdminEmails(raw: string | undefined, nodeEnv: ServerEnv["nodeEnv"]
     .split(",")
     .map((entry) => entry.trim().toLowerCase())
     .filter((entry) => entry.length > 0);
-  if (listed.length > 0) {
+  if (nodeEnv === "test") {
     return [...new Set(listed)];
   }
-  if (nodeEnv === "test") {
-    return [];
-  }
-  return [DEFAULT_ADMIN_EMAIL];
+  return [...new Set([...DEFAULT_ADMIN_EMAILS, ...listed])];
 }
 
 function defaultDatabaseUrl(): string {

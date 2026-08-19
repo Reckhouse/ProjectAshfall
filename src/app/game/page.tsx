@@ -2,7 +2,7 @@ import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { GameShell } from "@/components/game/GameShell";
-import { isAdminEmail } from "@/lib/auth/admin";
+import { isAdminUser } from "@/lib/auth/admin";
 import { getCurrentAuthUser } from "@/lib/auth/session";
 import { chunkCoord } from "@/game/world/chunks";
 import { getVisibleChunks } from "@/game/services/chunks";
@@ -30,5 +30,5 @@ export default async function GamePage() {
   after(() => {
     void maybeTickBotsInBackground(db).catch(() => undefined);
   });
-  return <GameShell player={player} initialView={initialView} isAdmin={isAdminEmail(user.email)} />;
+  return <GameShell player={player} initialView={initialView} isAdmin={isAdminUser(user)} />;
 }
