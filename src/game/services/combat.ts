@@ -129,6 +129,33 @@ export function resolveCombat(input: {
   };
 }
 
+export function applyCaveBattleAdjustments(report: BattleReport, tier: number): BattleReport {
+  if (report.outcome !== "ATTACKER_WIN" || report.attackerCommitted <= 0) {
+    return report;
+  }
+  const minCasualties =
+    balanceV1.combat.caveMinAttackerCasualtiesOnWin[
+      tier as keyof typeof balanceV1.combat.caveMinAttackerCasualtiesOnWin
+    ] ?? 1;
+  const floorCasualties = casualtyCount(report.attackerCommitted, balanceV1.combat.caveWinnerLossFloorBps);
+  const nextCasualties = Math.min(
+    report.attackerCommitted,
+    Math.max(report.attackerCasualties, minCasualties, floorCasualties),
+  );
+  if (nextCasualties === report.attackerCasualties) {
+    return report;
+  }
+  const adjusted = {
+    ...report,
+    attackerCasualties: nextCasualties,
+    attackerRemaining: report.attackerCommitted - nextCasualties,
+  };
+  return {
+    ...adjusted,
+    summary: formatBattleSummary(adjusted),
+  };
+}
+
 export function simulateAttackerWinRate(input: {
   powerRatioX100: number;
   trials: number;

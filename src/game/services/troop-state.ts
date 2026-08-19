@@ -18,7 +18,13 @@ export function offensePower(quantity: number): number {
 }
 
 export function caveRequiredPower(tier: number): number {
-  return tier * balanceV1.troops.cavePowerPerTier;
+  const units =
+    balanceV1.combat.caveDefenseUnitsByTier[tier as keyof typeof balanceV1.combat.caveDefenseUnitsByTier] ??
+    tier * balanceV1.combat.caveDefenseUnitsPerTier;
+  const power =
+    balanceV1.combat.caveDefensePowerByTier[tier as keyof typeof balanceV1.combat.caveDefensePowerByTier] ??
+    balanceV1.troops.cavePowerPerTier;
+  return units * power;
 }
 
 export async function loadTroopSnapshot(

@@ -6,10 +6,11 @@ import { GameError, isGameError } from "@/game/domain/errors";
 import type { PlayerSnapshot, ResourceKind, WorldView } from "@/game/domain/types";
 import { applyPassiveAccrual } from "@/game/services/accrual";
 import { loadSnapshot } from "@/game/services/provision";
-import { caveCandidatesInChunk, caveEnergyCost, pickToolAffinity } from "@/game/world/caves";
+import { caveCandidateAt, caveCandidatesInChunk, caveEnergyCost, pickToolAffinity } from "@/game/world/caves";
 import { chebyshevDistance, collectionBonusBps } from "@/game/world/nodes";
+import { stackToolBonusBps } from "@/game/world/tools";
 import { applyExpeditionCasualties, caveRequiredPower, getExpeditionOffense } from "@/game/services/troop-state";
-import { resolveCombat, type BattleReport } from "@/game/services/combat";
+import { applyCaveBattleAdjustments, resolveCombat, type BattleReport } from "@/game/services/combat";
 import { createSeededRng } from "@/game/world/rng";
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
@@ -45,7 +46,7 @@ export async function materializeChunkCaves(db: AppDb | AppTx, world: WorldView,
       .insert(caves)
       .values({
         featureId: feature.id,
-        tier: balanceV1.economy.caves.starterTier,
+        tier: caveCandidateAt(world, feature.x, feature.y)?.tier ?? balanceV1.economy.caves.starterTier,
       })
       .onConflictDoNothing({ target: caves.featureId });
   }
@@ -92,17 +93,25 @@ export async function listCavesInBounds(
   }));
 }
 
+export async function collectionBonusForPlayer(
+  tx: AppTx | AppDb,
+  playerId: string,
+  resource: ResourceKind,
+): Promise<number> {
+  const tools = await tx
+    .select({ bonusBps: toolInstances.collectionBonusBps })
+    .from(toolInstances)
+    .where(and(eq(toolInstances.ownerPlayerId, playerId), eq(toolInstances.resourceAffinity, resource)));
+  return stackToolBonusBps(tools.map((tool) => tool.bonusBps));
+}
+
+/** @deprecated Use collectionBonusForPlayer — kept for call-site clarity during migration. */
 export async function equippedToolBonus(
   tx: AppTx | AppDb,
   playerId: string,
   resource: ResourceKind,
 ): Promise<number> {
-  const [tool] = await tx
-    .select()
-    .from(toolInstances)
-    .where(and(eq(toolInstances.ownerPlayerId, playerId), eq(toolInstances.equippedSlot, resource)))
-    .limit(1);
-  return tool?.collectionBonusBps ?? 0;
+  return collectionBonusForPlayer(tx, playerId, resource);
 }
 
 async function replayAction(tx: AppTx, playerId: string, actionKey: string): Promise<unknown | "continue"> {
@@ -193,36 +202,48 @@ export async function clearCave(
         })
         .where(eq(playerResources.playerId, player.id));
 
+      const defenderUnits =
+        balanceV1.combat.caveDefenseUnitsByTier[
+          cave.tier as keyof typeof balanceV1.combat.caveDefenseUnitsByTier
+        ] ?? cave.tier * balanceV1.combat.caveDefenseUnitsPerTier;
+      const defenderPowerPerUnit =
+        balanceV1.combat.caveDefensePowerByTier[
+          cave.tier as keyof typeof balanceV1.combat.caveDefensePowerByTier
+        ] ?? balanceV1.troops.cavePowerPerTier;
+
       const combatSeed = `${feature.worldId}:${cave.featureId}:${player.id}:${input.actionId}:combat`;
-      const battle = resolveCombat({
+      const resolved = resolveCombat({
         attacker: { quantity: committed, powerPerUnit: balanceV1.troops.offenseAttack },
         defender: {
-          quantity: cave.tier * balanceV1.combat.caveDefenseUnitsPerTier,
-          powerPerUnit: balanceV1.troops.cavePowerPerTier,
+          quantity: defenderUnits,
+          powerPerUnit: defenderPowerPerUnit,
         },
         rng: createSeededRng(combatSeed),
         seed: combatSeed,
       });
+      const battle = applyCaveBattleAdjustments(resolved, cave.tier);
       await applyExpeditionCasualties(tx, player.id, battle.attackerCasualties);
 
       let tool: ClearCaveResult["tool"] = null;
       if (battle.outcome === "ATTACKER_WIN") {
-        const equipped = await tx.select().from(toolInstances).where(eq(toolInstances.ownerPlayerId, player.id));
-        const energyTool = equipped.find((entry) => entry.equippedSlot === "ENERGY");
-        const metalTool = equipped.find((entry) => entry.equippedSlot === "METAL");
+        const owned = await tx.select().from(toolInstances).where(eq(toolInstances.ownerPlayerId, player.id));
+        const energyTier = Math.max(0, ...owned.filter((entry) => entry.resourceAffinity === "ENERGY").map((entry) => entry.tier));
+        const metalTier = Math.max(0, ...owned.filter((entry) => entry.resourceAffinity === "METAL").map((entry) => entry.tier));
         const rng = createSeededRng(`${feature.worldId}:${cave.featureId}:${player.id}:tool`);
         const affinity = pickToolAffinity({
-          energyTier: energyTool?.tier ?? 0,
-          metalTier: metalTool?.tier ?? 0,
+          energyTier,
+          metalTier,
           roll: rng.nextInt(0, 100),
         });
         const tier = cave.tier;
         const bonusBps = collectionBonusBps(tier);
-        const currentEquipped = affinity === "ENERGY" ? energyTool : metalTool;
-        const shouldEquip = !currentEquipped || tier > currentEquipped.tier;
+        const affinityTools = owned.filter((entry) => entry.resourceAffinity === affinity);
+        const currentEquipped = owned.find((entry) => entry.equippedSlot === affinity) ?? null;
+        const bestTier = affinityTools.length > 0 ? Math.max(...affinityTools.map((entry) => entry.tier)) : 0;
+        const markEquipped = tier >= bestTier;
         const toolId = createId();
 
-        if (shouldEquip && currentEquipped) {
+        if (markEquipped && currentEquipped) {
           await tx
             .update(toolInstances)
             .set({ equippedSlot: null })
@@ -235,7 +256,7 @@ export async function clearCave(
           resourceAffinity: affinity,
           tier,
           collectionBonusBps: bonusBps,
-          equippedSlot: shouldEquip ? affinity : null,
+          equippedSlot: markEquipped ? affinity : null,
         });
 
         await tx.insert(caveClears).values({
@@ -246,7 +267,8 @@ export async function clearCave(
           toolId,
         });
 
-        tool = { affinity, tier, bonusBps, equipped: shouldEquip };
+        const stackedBonus = stackToolBonusBps([...affinityTools.map((entry) => entry.collectionBonusBps), bonusBps]);
+        tool = { affinity, tier, bonusBps: stackedBonus, equipped: markEquipped };
       }
 
       await tx.insert(battleReports).values({

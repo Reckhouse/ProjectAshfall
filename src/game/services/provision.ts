@@ -9,6 +9,7 @@ import { logEvent } from "@/lib/logging";
 import { applyPassiveAccrual } from "@/game/services/accrual";
 import { getAllianceSummary } from "@/game/services/alliances";
 import { countUnreadMail } from "@/game/services/mail";
+import { toolSlotSummary } from "@/game/world/tools";
 import { allocateBaseSpawn } from "@/game/services/spawn";
 import { ensureStartingTroops, loadTroopSnapshot } from "@/game/services/troop-state";
 import { productionRates, storageCaps } from "@/game/world/nodes";
@@ -54,8 +55,10 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
     .where(eq(playerResources.playerId, player.id))
     .limit(1);
   const equippedTools = await tx.select().from(toolInstances).where(eq(toolInstances.ownerPlayerId, player.id));
-  const energyTool = equippedTools.find((tool) => tool.equippedSlot === "ENERGY");
-  const metalTool = equippedTools.find((tool) => tool.equippedSlot === "METAL");
+  const energyTools = equippedTools.filter((tool) => tool.resourceAffinity === "ENERGY");
+  const metalTools = equippedTools.filter((tool) => tool.resourceAffinity === "METAL");
+  const energySummary = toolSlotSummary(energyTools);
+  const metalSummary = toolSlotSummary(metalTools);
   const troopView = await loadTroopSnapshot(tx, player.id);
   const alliance = await getAllianceSummary(tx, player.id);
   const unreadMail = await countUnreadMail(tx, player.id);
@@ -93,11 +96,11 @@ export async function loadSnapshot(tx: AppTx | AppDb, playerId: string): Promise
           }
         : null,
     tools: {
-      energy: energyTool
-        ? { tier: energyTool.tier, bonusBps: energyTool.collectionBonusBps }
+      energy: energySummary
+        ? { tier: energySummary.tier, bonusBps: energySummary.bonusBps, count: energySummary.count }
         : null,
-      metal: metalTool
-        ? { tier: metalTool.tier, bonusBps: metalTool.collectionBonusBps }
+      metal: metalSummary
+        ? { tier: metalSummary.tier, bonusBps: metalSummary.bonusBps, count: metalSummary.count }
         : null,
     },
     troops: troopView.troops,

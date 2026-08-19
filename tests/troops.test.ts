@@ -127,17 +127,20 @@ describe("troops and expeditions", () => {
       code: "INSUFFICIENT_TROOPS",
     });
 
-    await departBase(db, "troop-cave-strong", crypto.randomUUID(), 2);
+    await recruitTroops(db, "troop-cave-strong", { actionId: crypto.randomUUID(), unitType: "OFFENSE", count: 1 });
+    await recruitTroops(db, "troop-cave-strong", { actionId: crypto.randomUUID(), unitType: "OFFENSE", count: 1 });
+    await departBase(db, "troop-cave-strong", crypto.randomUUID(), 4);
     await db
       .update(players)
       .set({ x: cave!.x, y: cave!.y, locationType: "FIELD" })
       .where(eq(players.authUserId, "troop-cave-strong"));
     const cleared = await clearCave(db, "troop-cave-strong", { actionId: crypto.randomUUID(), caveId: cave!.id });
-    expect(cleared.tool?.tier).toBe(1);
+    expect(cleared.tool?.tier).toBe(cave!.tier);
     expect(cleared.battle.outcome).toBe("ATTACKER_WIN");
-    expect(cleared.battle.attackerCommitted).toBe(2);
+    expect(cleared.battle.attackerCommitted).toBe(4);
+    expect(cleared.battle.attackerCasualties).toBeGreaterThanOrEqual(1);
     expect(cleared.player.troops.offense.deployed).toBe(cleared.battle.attackerRemaining);
-    expect(offensePower(2)).toBeGreaterThanOrEqual(caveRequiredPower(1));
+    expect(offensePower(4)).toBeGreaterThanOrEqual(caveRequiredPower(cave!.tier));
     await client.close();
   });
 

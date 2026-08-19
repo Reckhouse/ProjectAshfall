@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { players, resourceNodes, toolInstances } from "@/db/schema";
+import { players, resourceNodes, toolInstances, troopStacks } from "@/db/schema";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError } from "@/game/domain/errors";
 import { clearCave, listCavesInBounds, materializeChunkCaves } from "@/game/services/caves";
@@ -97,6 +97,10 @@ describe("caves and tools", () => {
 
     await departBase(db, "cave-1", crypto.randomUUID());
     await db
+      .update(troopStacks)
+      .set({ quantity: 4 })
+      .where(and(eq(troopStacks.playerId, playerRow!.id), eq(troopStacks.locationType, "EXPEDITION")));
+    await db
       .update(players)
       .set({ x: cave.x, y: cave.y, locationType: "FIELD" })
       .where(eq(players.authUserId, "cave-1"));
@@ -105,17 +109,19 @@ describe("caves and tools", () => {
     const first = await clearCave(db, "cave-1", { actionId, caveId: cave.id });
     expect(first.battle.outcome).toBe("ATTACKER_WIN");
     expect(first.tool).toMatchObject({
-      tier: 1,
-      bonusBps: balanceV1.economy.tools.bonusBpsByTier[1],
+      tier: cave.tier,
+      bonusBps: balanceV1.economy.tools.bonusBpsByTier[cave.tier as 1],
       equipped: true,
     });
     const tool = first.tool!;
     expect(["ENERGY", "METAL"]).toContain(tool.affinity);
-    expect(first.player.resources?.energy).toBe(snapshot.resources!.energy - balanceV1.economy.caves.energyCostByTier[1]);
+    expect(first.player.resources?.energy).toBe(snapshot.resources!.energy - balanceV1.economy.caves.energyCostByTier[cave.tier as 1]);
     expect(first.player.tools[tool.affinity === "ENERGY" ? "energy" : "metal"]).toEqual({
-      tier: 1,
-      bonusBps: 1000,
+      tier: cave.tier,
+      bonusBps: balanceV1.economy.tools.bonusBpsByTier[cave.tier as 1],
+      count: 1,
     });
+    expect(first.battle.attackerCasualties).toBeGreaterThanOrEqual(1);
 
     const replayed = await clearCave(db, "cave-1", { actionId, caveId: cave.id });
     expect(replayed.tool).toEqual(first.tool);
@@ -146,7 +152,7 @@ describe("caves and tools", () => {
       ownerPlayerId: playerRow!.id,
       resourceAffinity: node!.resourceType,
       tier: 1,
-      collectionBonusBps: 1000,
+      collectionBonusBps: 800,
       equippedSlot: node!.resourceType,
     });
     if (chebyshevDistance(snapshot.location!, node!) > balanceV1.economy.nodes.collectChebyshevRange) {
@@ -157,7 +163,7 @@ describe("caves and tools", () => {
     }
 
     const collected = await collectResource(db, "cave-bonus", { actionId: crypto.randomUUID(), nodeId: node!.id });
-    const expected = applyCollectionBonus(node!.remaining, 1000);
+    const expected = applyCollectionBonus(node!.remaining, 800);
     expect(collected.collected.amount).toBe(expected);
     expect(collected.collected.amount).toBeGreaterThan(
       node!.resourceType === "ENERGY" ? balanceV1.economy.nodes.energyYield : balanceV1.economy.nodes.metalYield,
