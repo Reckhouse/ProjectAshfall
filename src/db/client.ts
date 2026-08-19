@@ -11,6 +11,7 @@ import { PHASE2_MIGRATION_SQL } from "@/db/migrations/phase2";
 import { PHASE3_MIGRATION_SQL } from "@/db/migrations/phase3";
 import { PHASE4_MIGRATION_SQL } from "@/db/migrations/phase4";
 import { PHASE5_MIGRATION_SQL } from "@/db/migrations/phase5";
+import { PHASE6_MIGRATION_SQL } from "@/db/migrations/phase6";
 import type { AppDb } from "@/db/types";
 import { getServerEnv, pgliteDataDir } from "@/lib/env";
 import { seedActiveWorld } from "@/db/seed";
@@ -46,6 +47,7 @@ const SCHEMA_SQL = [
   PHASE3_MIGRATION_SQL,
   PHASE4_MIGRATION_SQL,
   PHASE5_MIGRATION_SQL,
+  PHASE6_MIGRATION_SQL,
 ] as const;
 
 async function applySchemaWithExec(execSql: (sql: string) => Promise<unknown>): Promise<void> {

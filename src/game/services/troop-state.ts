@@ -216,6 +216,49 @@ export async function closeActiveExpedition(tx: AppTx, playerId: string, baseId:
     .where(eq(expeditions.id, active.id));
 }
 
+export async function applyExpeditionCasualties(tx: AppTx, playerId: string, casualties: number): Promise<number> {
+  const requested = Math.max(0, Math.trunc(casualties));
+  const [active] = await tx
+    .select()
+    .from(expeditions)
+    .where(and(eq(expeditions.playerId, playerId), eq(expeditions.status, "ACTIVE")))
+    .for("update")
+    .limit(1);
+  if (!active) {
+    throw new GameError("INVALID_COMMAND", "No expedition is in the field.", 400);
+  }
+
+  const [stack] = await tx
+    .select()
+    .from(troopStacks)
+    .where(
+      and(
+        eq(troopStacks.playerId, playerId),
+        eq(troopStacks.locationType, "EXPEDITION"),
+        eq(troopStacks.locationId, active.id),
+        eq(troopStacks.unitType, "OFFENSE"),
+      ),
+    )
+    .for("update")
+    .limit(1);
+  if (!stack || stack.quantity <= 0 || requested === 0) {
+    return 0;
+  }
+
+  const killed = Math.min(requested, stack.quantity);
+  const remaining = stack.quantity - killed;
+  await tx
+    .update(troopStacks)
+    .set({
+      quantity: remaining,
+      wounded: Math.min(stack.wounded, remaining),
+      updatedAt: new Date(),
+      version: stack.version + 1,
+    })
+    .where(eq(troopStacks.id, stack.id));
+  return killed;
+}
+
 export async function getExpeditionOffense(tx: AppTx | AppDb, playerId: string): Promise<number> {
   const [active] = await tx
     .select()

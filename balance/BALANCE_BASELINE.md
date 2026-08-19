@@ -86,12 +86,14 @@ Cave T5 -> Tool T4 60%, T5 40%
 
 ## Combat draft
 
-Not implemented until later phase.
+PvE cave combat uses a seeded integer resolver. PvP attacks are not in this phase.
 
 ```yaml
 combat:
-  variance_min: 0.95
-  variance_max: 1.05
+  variance_min_bps: 8500
+  variance_max_bps: 11500
+  base_defense_modifier_bps: 10300
+  cave_defense_units_per_tier: 1
   target_equal_cost_defender_win_rate_min: 0.55
   target_equal_cost_defender_win_rate_max: 0.60
 ```

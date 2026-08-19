@@ -351,3 +351,40 @@ export const troopStacks = pgTable(
     index("troop_stacks_player_idx").on(table.playerId),
   ],
 );
+
+export const battleReports = pgTable(
+  "battle_reports",
+  {
+    id: uuid("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    playerId: uuid("player_id")
+      .notNull()
+      .references(() => players.id, { onDelete: "cascade" }),
+    actionKey: text("action_key").notNull(),
+    kind: text("kind").notNull(),
+    caveId: uuid("cave_id").references(() => caves.featureId, { onDelete: "set null" }),
+    outcome: text("outcome").notNull(),
+    seed: text("seed").notNull(),
+    attackerCommitted: integer("attacker_committed").notNull(),
+    defenderCommitted: integer("defender_committed").notNull(),
+    attackerCasualties: integer("attacker_casualties").notNull(),
+    defenderCasualties: integer("defender_casualties").notNull(),
+    attackerPower: integer("attacker_power").notNull(),
+    defenderPower: integer("defender_power").notNull(),
+    report: jsonb("report").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    unique("battle_reports_player_action_unique").on(table.playerId, table.actionKey),
+    check("battle_reports_kind_check", sql`${table.kind} in ('CAVE')`),
+    check("battle_reports_outcome_check", sql`${table.outcome} in ('ATTACKER_WIN', 'DEFENDER_WIN')`),
+    check(
+      "battle_reports_qty_check",
+      sql`${table.attackerCommitted} >= 0 and ${table.defenderCommitted} >= 0
+        and ${table.attackerCasualties} >= 0 and ${table.attackerCasualties} <= ${table.attackerCommitted}
+        and ${table.defenderCasualties} >= 0 and ${table.defenderCasualties} <= ${table.defenderCommitted}`,
+    ),
+    index("battle_reports_player_idx").on(table.playerId),
+  ],
+);

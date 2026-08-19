@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { expeditions, players, troopStacks } from "@/db/schema";
+import { expeditions, players, troopStacks, caves as caveRows, battleReports } from "@/db/schema";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { clearCave, listCavesInBounds, materializeChunkCaves } from "@/game/services/caves";
 import { enterBase, departBase } from "@/game/services/move";
@@ -133,8 +133,68 @@ describe("troops and expeditions", () => {
       .set({ x: cave!.x, y: cave!.y, locationType: "FIELD" })
       .where(eq(players.authUserId, "troop-cave-strong"));
     const cleared = await clearCave(db, "troop-cave-strong", { actionId: crypto.randomUUID(), caveId: cave!.id });
-    expect(cleared.tool.tier).toBe(1);
+    expect(cleared.tool?.tier).toBe(1);
+    expect(cleared.battle.outcome).toBe("ATTACKER_WIN");
+    expect(cleared.battle.attackerCommitted).toBe(2);
+    expect(cleared.player.troops.offense.deployed).toBe(cleared.battle.attackerRemaining);
     expect(offensePower(2)).toBeGreaterThanOrEqual(caveRequiredPower(1));
+    await client.close();
+  });
+
+  it("applies cave combat casualties on defeat and leaves the cave uncleared", async () => {
+    const { db, client, world } = await setupIsolatedGameDb({ width: 64, height: 64, regionSize: 32 });
+    const start = await ensurePlayerProvisioned(db, "troop-cave-loss", { rng: createSeededRng("troop-cave-loss") });
+    const [playerRow] = await db.select().from(players).where(eq(players.authUserId, "troop-cave-loss"));
+    const size = balanceV1.world.chunkSize;
+    for (let chunkY = 0; chunkY <= Math.floor((world.height - 1) / size); chunkY += 1) {
+      for (let chunkX = 0; chunkX <= Math.floor((world.width - 1) / size); chunkX += 1) {
+        await materializeChunkNodes(db, world, chunkX, chunkY);
+        await materializeChunkCaves(db, world, chunkX, chunkY);
+      }
+    }
+    const nearby = await listCavesInBounds(db, {
+      worldId: world.id,
+      playerId: playerRow!.id,
+      minX: 0,
+      maxX: world.width - 1,
+      minY: 0,
+      maxY: world.height - 1,
+    });
+    const cave = nearby.find((entry) => !entry.cleared);
+    expect(cave).toBeTruthy();
+    await db.update(caveRows).set({ tier: 5 }).where(eq(caveRows.featureId, cave!.id));
+
+    await departBase(db, "troop-cave-loss", crypto.randomUUID(), 1);
+    await db
+      .update(players)
+      .set({ x: cave!.x, y: cave!.y, locationType: "FIELD" })
+      .where(eq(players.authUserId, "troop-cave-loss"));
+
+    const actionId = crypto.randomUUID();
+    const lost = await clearCave(db, "troop-cave-loss", { actionId, caveId: cave!.id });
+    expect(lost.tool).toBeNull();
+    expect(lost.battle.outcome).toBe("DEFENDER_WIN");
+    expect(lost.battle.attackerCommitted).toBe(1);
+    expect(lost.player.troops.offense.deployed).toBe(lost.battle.attackerRemaining);
+    expect(lost.player.resources?.energy).toBe(start.resources!.energy - balanceV1.economy.caves.energyCostByTier[5]);
+
+    const replayed = await clearCave(db, "troop-cave-loss", { actionId, caveId: cave!.id });
+    expect(replayed.battle).toEqual(lost.battle);
+    expect(replayed.player.resources?.energy).toBe(lost.player.resources?.energy);
+
+    const stillOpen = await listCavesInBounds(db, {
+      worldId: world.id,
+      playerId: playerRow!.id,
+      minX: cave!.x,
+      maxX: cave!.x,
+      minY: cave!.y,
+      maxY: cave!.y,
+    });
+    expect(stillOpen[0]?.cleared).toBe(false);
+
+    const reports = await db.select().from(battleReports);
+    expect(reports).toHaveLength(1);
+    expect(reports[0]?.outcome).toBe("DEFENDER_WIN");
     await client.close();
   });
 });

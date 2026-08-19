@@ -62,6 +62,10 @@ export const balanceV1 = {
       starterTier: 1,
       energyCostByTier: {
         1: 35,
+        2: 55,
+        3: 80,
+        4: 110,
+        5: 150,
       },
     },
     tools: {
@@ -86,6 +90,12 @@ export const balanceV1 = {
       OFFENSE: 40,
       DEFENSE: 35,
     },
+  },
+  combat: {
+    varianceMinBps: 8500,
+    varianceMaxBps: 11500,
+    baseDefenseModifierBps: 10300,
+    caveDefenseUnitsPerTier: 1,
   },
 } as const;
 

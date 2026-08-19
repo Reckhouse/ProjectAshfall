@@ -103,12 +103,16 @@ describe("caves and tools", () => {
 
     const actionId = crypto.randomUUID();
     const first = await clearCave(db, "cave-1", { actionId, caveId: cave.id });
-    expect(first.tool.tier).toBe(1);
-    expect(first.tool.bonusBps).toBe(balanceV1.economy.tools.bonusBpsByTier[1]);
-    expect(first.tool.equipped).toBe(true);
-    expect(["ENERGY", "METAL"]).toContain(first.tool.affinity);
+    expect(first.battle.outcome).toBe("ATTACKER_WIN");
+    expect(first.tool).toMatchObject({
+      tier: 1,
+      bonusBps: balanceV1.economy.tools.bonusBpsByTier[1],
+      equipped: true,
+    });
+    const tool = first.tool!;
+    expect(["ENERGY", "METAL"]).toContain(tool.affinity);
     expect(first.player.resources?.energy).toBe(snapshot.resources!.energy - balanceV1.economy.caves.energyCostByTier[1]);
-    expect(first.player.tools[first.tool.affinity === "ENERGY" ? "energy" : "metal"]).toEqual({
+    expect(first.player.tools[tool.affinity === "ENERGY" ? "energy" : "metal"]).toEqual({
       tier: 1,
       bonusBps: 1000,
     });

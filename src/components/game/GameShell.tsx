@@ -28,6 +28,13 @@ type CommandResponse = {
   cave?: { id: string; tier: number };
   tool?: { affinity: "ENERGY" | "METAL"; tier: number; bonusBps: number; equipped: boolean };
   recruited?: { unitType: "OFFENSE" | "DEFENSE"; count: number; metalSpent: number };
+  battle?: {
+    outcome: "ATTACKER_WIN" | "DEFENDER_WIN";
+    summary: string;
+    attackerCommitted: number;
+    attackerCasualties: number;
+    attackerRemaining: number;
+  };
 };
 
 type TileStageView = {
@@ -353,25 +360,28 @@ export function GameShell({
         actionId: newActionId(),
         payload: { caveId },
       }, { refreshChunks: "always" });
-      if (next?.tool && next.player) {
-        const slot = next.tool.affinity === "ENERGY" ? "Energy" : "Metal";
-        announce(
-          next.tool.equipped
-            ? `Cleared a cave. Equipped a T${next.tool.tier} ${slot} tool.`
-            : `Cleared a cave. Stored a T${next.tool.tier} ${slot} tool.`,
-          target
-            ? sceneAt(viewRef.current, next.player, target.x, target.y, { cave: true })
-            : { art: "cave", heading: TILE_ART.cave.heading, detail: tileDetail(next.player.location?.x ?? 0, next.player.location?.y ?? 0) },
-        );
-        setView((current) => {
-          if (!current) {
-            return current;
-          }
-          return {
-            ...current,
-            caves: (current.caves ?? []).map((entry) => (entry.id === caveId ? { ...entry, cleared: true } : entry)),
-          };
-        });
+      if (next?.player && (next.tool || next.battle)) {
+        const scene = target
+          ? sceneAt(viewRef.current, next.player, target.x, target.y, { cave: true })
+          : { art: "cave" as const, heading: TILE_ART.cave.heading, detail: tileDetail(next.player.location?.x ?? 0, next.player.location?.y ?? 0) };
+        if (next.tool) {
+          const slot = next.tool.affinity === "ENERGY" ? "Energy" : "Metal";
+          const loot = next.tool.equipped
+            ? `Equipped a T${next.tool.tier} ${slot} tool.`
+            : `Stored a T${next.tool.tier} ${slot} tool.`;
+          announce(`${next.battle?.summary ?? "Won the fight."} ${loot}`, scene);
+          setView((current) => {
+            if (!current) {
+              return current;
+            }
+            return {
+              ...current,
+              caves: (current.caves ?? []).map((entry) => (entry.id === caveId ? { ...entry, cleared: true } : entry)),
+            };
+          });
+        } else {
+          announce(next.battle?.summary ?? "Lost the cave fight.", scene);
+        }
       }
     },
     [announce, sendCommand],

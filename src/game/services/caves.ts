@@ -1,5 +1,5 @@
 import { and, eq, gte, lte } from "drizzle-orm";
-import { caveClears, caves, gameActions, playerResources, players, toolInstances, worldFeatures } from "@/db/schema";
+import { caveClears, caves, gameActions, playerResources, players, toolInstances, worldFeatures, battleReports } from "@/db/schema";
 import type { AppDb, AppTx } from "@/db/types";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { GameError, isGameError } from "@/game/domain/errors";
@@ -8,7 +8,8 @@ import { applyPassiveAccrual } from "@/game/services/accrual";
 import { loadSnapshot } from "@/game/services/provision";
 import { caveCandidatesInChunk, caveEnergyCost, pickToolAffinity } from "@/game/world/caves";
 import { chebyshevDistance, collectionBonusBps } from "@/game/world/nodes";
-import { caveRequiredPower, getExpeditionOffense, offensePower } from "@/game/services/troop-state";
+import { applyExpeditionCasualties, caveRequiredPower, getExpeditionOffense } from "@/game/services/troop-state";
+import { resolveCombat, type BattleReport } from "@/game/services/combat";
 import { createSeededRng } from "@/game/world/rng";
 import { createId } from "@/lib/ids";
 import { logEvent } from "@/lib/logging";
@@ -119,15 +120,18 @@ async function replayAction(tx: AppTx, playerId: string, actionKey: string): Pro
   return "continue";
 }
 
+export type ClearCaveResult = {
+  player: PlayerSnapshot;
+  battle: BattleReport;
+  cave: { id: string; tier: number };
+  tool: { affinity: ResourceKind; tier: number; bonusBps: number; equipped: boolean } | null;
+};
+
 export async function clearCave(
   db: AppDb,
   authUserId: string,
   input: { actionId: string; caveId: string },
-): Promise<{
-  player: PlayerSnapshot;
-  cave: { id: string; tier: number };
-  tool: { affinity: ResourceKind; tier: number; bonusBps: number; equipped: boolean };
-}> {
+): Promise<ClearCaveResult> {
   try {
     const result = await db.transaction(async (tx) => {
       const [player] = await tx.select().from(players).where(eq(players.authUserId, authUserId)).for("update").limit(1);
@@ -137,11 +141,7 @@ export async function clearCave(
 
       const replayed = await replayAction(tx, player.id, input.actionId);
       if (replayed !== "continue") {
-        return replayed as {
-          player: PlayerSnapshot;
-          cave: { id: string; tier: number };
-          tool: { affinity: ResourceKind; tier: number; bonusBps: number; equipped: boolean };
-        };
+        return replayed as ClearCaveResult;
       }
 
       await applyPassiveAccrual(tx, player.id);
@@ -165,11 +165,10 @@ export async function clearCave(
       }
 
       const committed = await getExpeditionOffense(tx, player.id);
-      const required = caveRequiredPower(cave.tier);
-      if (offensePower(committed) < required) {
+      if (committed <= 0) {
         throw new GameError(
           "INSUFFICIENT_TROOPS",
-          `Commit at least ${Math.ceil(required / balanceV1.troops.offenseAttack)} offense troops to clear this cave.`,
+          `Commit at least ${Math.ceil(caveRequiredPower(cave.tier) / balanceV1.troops.offenseAttack)} offense troops to clear this cave.`,
           400,
         );
       }
@@ -194,50 +193,85 @@ export async function clearCave(
         })
         .where(eq(playerResources.playerId, player.id));
 
-      const equipped = await tx.select().from(toolInstances).where(eq(toolInstances.ownerPlayerId, player.id));
-      const energyTool = equipped.find((tool) => tool.equippedSlot === "ENERGY");
-      const metalTool = equipped.find((tool) => tool.equippedSlot === "METAL");
-      const rng = createSeededRng(`${feature.worldId}:${cave.featureId}:${player.id}:tool`);
-      const affinity = pickToolAffinity({
-        energyTier: energyTool?.tier ?? 0,
-        metalTier: metalTool?.tier ?? 0,
-        roll: rng.nextInt(0, 100),
+      const combatSeed = `${feature.worldId}:${cave.featureId}:${player.id}:${input.actionId}:combat`;
+      const battle = resolveCombat({
+        attacker: { quantity: committed, powerPerUnit: balanceV1.troops.offenseAttack },
+        defender: {
+          quantity: cave.tier * balanceV1.combat.caveDefenseUnitsPerTier,
+          powerPerUnit: balanceV1.troops.cavePowerPerTier,
+        },
+        rng: createSeededRng(combatSeed),
+        seed: combatSeed,
       });
-      const tier = cave.tier;
-      const bonusBps = collectionBonusBps(tier);
-      const currentEquipped = affinity === "ENERGY" ? energyTool : metalTool;
-      const shouldEquip = !currentEquipped || tier > currentEquipped.tier;
-      const toolId = createId();
+      await applyExpeditionCasualties(tx, player.id, battle.attackerCasualties);
 
-      if (shouldEquip && currentEquipped) {
-        await tx
-          .update(toolInstances)
-          .set({ equippedSlot: null })
-          .where(eq(toolInstances.id, currentEquipped.id));
+      let tool: ClearCaveResult["tool"] = null;
+      if (battle.outcome === "ATTACKER_WIN") {
+        const equipped = await tx.select().from(toolInstances).where(eq(toolInstances.ownerPlayerId, player.id));
+        const energyTool = equipped.find((entry) => entry.equippedSlot === "ENERGY");
+        const metalTool = equipped.find((entry) => entry.equippedSlot === "METAL");
+        const rng = createSeededRng(`${feature.worldId}:${cave.featureId}:${player.id}:tool`);
+        const affinity = pickToolAffinity({
+          energyTier: energyTool?.tier ?? 0,
+          metalTier: metalTool?.tier ?? 0,
+          roll: rng.nextInt(0, 100),
+        });
+        const tier = cave.tier;
+        const bonusBps = collectionBonusBps(tier);
+        const currentEquipped = affinity === "ENERGY" ? energyTool : metalTool;
+        const shouldEquip = !currentEquipped || tier > currentEquipped.tier;
+        const toolId = createId();
+
+        if (shouldEquip && currentEquipped) {
+          await tx
+            .update(toolInstances)
+            .set({ equippedSlot: null })
+            .where(eq(toolInstances.id, currentEquipped.id));
+        }
+
+        await tx.insert(toolInstances).values({
+          id: toolId,
+          ownerPlayerId: player.id,
+          resourceAffinity: affinity,
+          tier,
+          collectionBonusBps: bonusBps,
+          equippedSlot: shouldEquip ? affinity : null,
+        });
+
+        await tx.insert(caveClears).values({
+          id: createId(),
+          caveId: cave.featureId,
+          playerId: player.id,
+          rewardVersion: 1,
+          toolId,
+        });
+
+        tool = { affinity, tier, bonusBps, equipped: shouldEquip };
       }
 
-      await tx.insert(toolInstances).values({
-        id: toolId,
-        ownerPlayerId: player.id,
-        resourceAffinity: affinity,
-        tier,
-        collectionBonusBps: bonusBps,
-        equippedSlot: shouldEquip ? affinity : null,
-      });
-
-      await tx.insert(caveClears).values({
+      await tx.insert(battleReports).values({
         id: createId(),
-        caveId: cave.featureId,
         playerId: player.id,
-        rewardVersion: 1,
-        toolId,
+        actionKey: input.actionId,
+        kind: "CAVE",
+        caveId: cave.featureId,
+        outcome: battle.outcome,
+        seed: battle.seed,
+        attackerCommitted: battle.attackerCommitted,
+        defenderCommitted: battle.defenderCommitted,
+        attackerCasualties: battle.attackerCasualties,
+        defenderCasualties: battle.defenderCasualties,
+        attackerPower: battle.attackerPower,
+        defenderPower: battle.defenderPower,
+        report: battle,
       });
 
       const snapshot = await loadSnapshot(tx, player.id);
-      const payload = {
+      const payload: ClearCaveResult = {
         player: snapshot,
+        battle,
         cave: { id: cave.featureId, tier: cave.tier },
-        tool: { affinity, tier, bonusBps, equipped: shouldEquip },
+        tool,
       };
       await tx
         .insert(gameActions)
@@ -247,7 +281,7 @@ export async function clearCave(
           actionKey: input.actionId,
           actionType: "CLEAR_CAVE",
           status: "COMPLETED",
-          resultCode: "OK",
+          resultCode: battle.outcome === "ATTACKER_WIN" ? "OK" : "DEFEAT",
           resultPayload: payload,
           completedAt: new Date(),
         })
@@ -256,10 +290,10 @@ export async function clearCave(
     });
 
     logEvent({
-      event: "cave.cleared",
+      event: result.battle.outcome === "ATTACKER_WIN" ? "cave.cleared" : "combat.resolved",
       authUserId,
       actionId: input.actionId,
-      amount: result.tool.tier,
+      amount: result.battle.attackerCasualties,
     });
     return result;
   } catch (error) {

@@ -72,10 +72,14 @@ defensePower =
 Suggested random band:
 
 ```text
-0.95 .. 1.05
+0.85 .. 1.15
 ```
 
-This keeps planning important.
+This keeps planning important. Ties resolve as defender wins.
+
+## Cave PvE
+
+Cave defense power is `tier * cavePowerPerTier` with bounded variance. A starting expedition of 2 offense is expected to beat a T1 cave. Defeat spends Energy, applies casualties, and leaves the cave uncleared.
 
 ## Base defensive advantage target
 

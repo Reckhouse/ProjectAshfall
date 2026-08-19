@@ -20,6 +20,12 @@ export const CLIENT_OWNED_STATE_KEYS = [
   "wounded",
   "attackPower",
   "defensePower",
+  "outcome",
+  "casualties",
+  "attackerCasualties",
+  "defenderCasualties",
+  "battle",
+  "seed",
 ] as const;
 
 export function rejectClientOwnedState(body: unknown): void {
