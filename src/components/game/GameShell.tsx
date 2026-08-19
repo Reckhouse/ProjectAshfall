@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Direction, PlayerSnapshot, TerrainKind } from "@/game/domain/types";
+import type { Direction, PlayerSnapshot, ResourceKind, TerrainKind } from "@/game/domain/types";
 import type { VisibleWorldView } from "@/game/services/chunks";
 import { balanceV1 } from "@/game/config/balance.v1";
 import { chunkCoord, decodeTerrainKind } from "@/game/world/chunks";
@@ -9,6 +9,14 @@ import { directionBetween } from "@/game/world/directions";
 import { pickGatherCave } from "@/game/world/caves";
 import { baseUpgradeMetalCost, pickGatherNode } from "@/game/world/nodes";
 import { LogoutButton } from "@/components/game/LogoutButton";
+import { TileStage } from "@/components/game/TileStage";
+import {
+  resolveTileArt,
+  resolveTileFeature,
+  TILE_ART,
+  tileDetail,
+  type TileArtId,
+} from "@/game/ui/tile-art";
 
 type CommandResponse = {
   ok: boolean;
@@ -20,6 +28,12 @@ type CommandResponse = {
   cave?: { id: string; tier: number };
   tool?: { affinity: "ENERGY" | "METAL"; tier: number; bonusBps: number; equipped: boolean };
   recruited?: { unitType: "OFFENSE" | "DEFENSE"; count: number; metalSpent: number };
+};
+
+type TileStageView = {
+  art: TileArtId;
+  heading: string;
+  detail: string;
 };
 
 const TERRAIN_CLASS: Record<TerrainKind, string> = {
@@ -63,6 +77,34 @@ function terrainAt(view: VisibleWorldView | null, x: number, y: number): Terrain
   return null;
 }
 
+function sceneAt(
+  view: VisibleWorldView | null,
+  player: PlayerSnapshot,
+  x: number,
+  y: number,
+  pin?: { nodeType?: ResourceKind | null; cave?: boolean; base?: boolean },
+): TileStageView {
+  const ownBase = Boolean(pin?.base || (player.base && player.base.x === x && player.base.y === y));
+  const otherBase = Boolean(view?.bases.some((base) => base.x === x && base.y === y && !base.owned));
+  const liveNode = view?.nodes.find((entry) => entry.x === x && entry.y === y && entry.remaining > 0) ?? null;
+  const liveCave = view?.caves?.find((entry) => entry.x === x && entry.y === y && !entry.cleared) ?? null;
+  const art = resolveTileArt(
+    resolveTileFeature({
+      ownBase,
+      otherBase,
+      nodeType: pin?.nodeType ?? liveNode?.resourceType ?? null,
+      cave: pin?.cave ?? Boolean(liveCave),
+      terrain: terrainAt(view, x, y),
+    }),
+  );
+  const standingHere = player.location?.x === x && player.location?.y === y;
+  return {
+    art,
+    heading: TILE_ART[art].heading,
+    detail: tileDetail(x, y, standingHere ? player.location?.type : null),
+  };
+}
+
 export function GameShell({
   player: initialPlayer,
   initialView,
@@ -73,6 +115,13 @@ export function GameShell({
   const [player, setPlayer] = useState(initialPlayer);
   const [view, setView] = useState<VisibleWorldView | null>(initialView);
   const [feedback, setFeedback] = useState("Command channel open.");
+  const [stage, setStage] = useState<TileStageView>(() => {
+    const loc = initialPlayer.location;
+    if (!loc) {
+      return { art: "ash", heading: TILE_ART.ash.heading, detail: "UNASSIGNED" };
+    }
+    return sceneAt(initialView, initialPlayer, loc.x, loc.y);
+  });
   const [pending, setPending] = useState(false);
   const lastCommandAt = useRef(0);
   const pendingRef = useRef(false);
@@ -83,6 +132,13 @@ export function GameShell({
   useEffect(() => {
     viewRef.current = view;
   }, [view]);
+
+  const announce = useCallback((message: string, nextStage?: TileStageView) => {
+    setFeedback(message);
+    if (nextStage) {
+      setStage(nextStage);
+    }
+  }, []);
 
   const location = player.location;
   const offenseAtBase = player.troops?.offense.atBase ?? 0;
@@ -120,11 +176,11 @@ export function GameShell({
     const response = await fetch(`/api/game/world/chunks?cx=${cx}&cy=${cy}&radius=1`);
     const data = (await response.json()) as VisibleWorldView & CommandResponse;
     if (!response.ok || data.ok === false) {
-      setFeedback(data.message ?? "Unable to load the surrounding grid.");
+      announce(data.message ?? "Unable to load the surrounding grid.");
       return;
     }
     setView(data);
-  }, [viewCoversViewport]);
+  }, [announce, viewCoversViewport]);
 
   const sendCommand = useCallback(async (
     path: string,
@@ -152,7 +208,7 @@ export function GameShell({
       });
       const data = (await response.json()) as CommandResponse;
       if (!data.ok || !data.player) {
-        setFeedback(data.message ?? "Command rejected.");
+        announce(data.message ?? "Command rejected.");
         return null;
       }
       setPlayer(data.player);
@@ -160,13 +216,13 @@ export function GameShell({
       void loadChunks(data.player, refresh === "always");
       return data;
     } catch {
-      setFeedback("Command channel failed.");
+      announce("Command channel failed.");
       return null;
     } finally {
       pendingRef.current = false;
       setPending(false);
     }
-  }, [loadChunks]);
+  }, [announce, loadChunks]);
 
   const move = useCallback(
     async (direction: Direction) => {
@@ -182,13 +238,16 @@ export function GameShell({
         });
         if (next?.player?.location) {
           const returned = next.player.location.type === "BASE";
-          setFeedback(returned ? "Returned to base. Offense is home." : `Moved ${nextDirection}.`);
+          announce(
+            returned ? "Returned to base. Offense is home." : `Moved ${nextDirection}.`,
+            sceneAt(viewRef.current, next.player, next.player.location.x, next.player.location.y),
+          );
         }
         nextDirection = queuedDirection.current;
         queuedDirection.current = null;
       }
     },
-    [sendCommand],
+    [announce, sendCommand],
   );
 
   const leaveBase = useCallback(async () => {
@@ -198,17 +257,23 @@ export function GameShell({
       actionId: newActionId(),
       payload: { offenseCount },
     });
-    if (next?.player) {
-      setFeedback(`Left base with ${next.player.troops?.offense.deployed ?? 0} offense.`);
+    if (next?.player?.location) {
+      announce(
+        `Left base with ${next.player.troops?.offense.deployed ?? 0} offense.`,
+        sceneAt(viewRef.current, next.player, next.player.location.x, next.player.location.y, { base: true }),
+      );
     }
-  }, [sendCommand, offenseAtBase]);
+  }, [announce, sendCommand, offenseAtBase]);
 
   const enterBase = useCallback(async () => {
     const next = await sendCommand("/api/game/enter-base", { actionId: newActionId() });
-    if (next) {
-      setFeedback("Entered base. Surviving offense returned home.");
+    if (next?.player?.location) {
+      announce(
+        "Entered base. Surviving offense returned home.",
+        sceneAt(viewRef.current, next.player, next.player.location.x, next.player.location.y, { base: true }),
+      );
     }
-  }, [sendCommand]);
+  }, [announce, sendCommand]);
 
   const recruit = useCallback(
     async (unitType: "OFFENSE" | "DEFENSE") => {
@@ -216,21 +281,35 @@ export function GameShell({
         actionId: newActionId(),
         payload: { unitType, count: 1 },
       });
-      if (next?.recruited) {
-        setFeedback(`Recruited ${next.recruited.count} ${next.recruited.unitType.toLowerCase()}.`);
+      if (next?.recruited && next.player?.location) {
+        announce(
+          `Recruited ${next.recruited.count} ${next.recruited.unitType.toLowerCase()}.`,
+          sceneAt(viewRef.current, next.player, next.player.location.x, next.player.location.y, { base: true }),
+        );
       }
     },
-    [sendCommand],
+    [announce, sendCommand],
   );
 
   const collectNode = useCallback(
     async (nodeId: string) => {
+      const target = viewRef.current?.nodes.find((entry) => entry.id === nodeId) ?? null;
       const next = await sendCommand("/api/game/collect", {
         actionId: newActionId(),
         payload: { nodeId },
       }, { refreshChunks: "always" });
-      if (next?.collected) {
-        setFeedback(`Collected ${next.collected.amount} ${next.collected.resource}.`);
+      if (next?.collected && next.player) {
+        const pin = { nodeType: next.collected.resource };
+        announce(
+          `Collected ${next.collected.amount} ${next.collected.resource}.`,
+          target
+            ? sceneAt(viewRef.current, next.player, target.x, target.y, pin)
+            : {
+                art: next.collected.resource === "ENERGY" ? "energy" : "metal",
+                heading: TILE_ART[next.collected.resource === "ENERGY" ? "energy" : "metal"].heading,
+                detail: tileDetail(next.player.location?.x ?? 0, next.player.location?.y ?? 0),
+              },
+        );
         setView((current) => {
           if (!current) {
             return current;
@@ -244,34 +323,38 @@ export function GameShell({
         });
       }
     },
-    [sendCommand],
+    [announce, sendCommand],
   );
 
   const gatherNearest = useCallback(async () => {
     if (!location) {
-      setFeedback("No field location to gather from.");
+      announce("No field location to gather from.");
       return;
     }
     const node = pickGatherNode(view?.nodes ?? [], location, balanceV1.economy.nodes.collectChebyshevRange);
     if (!node) {
-      setFeedback("Move adjacent to an E or M node, then press G to gather.");
+      announce("Move adjacent to an E or M node, then press G to gather.");
       return;
     }
     await collectNode(node.id);
-  }, [collectNode, location, view?.nodes]);
+  }, [announce, collectNode, location, view?.nodes]);
 
   const clearCave = useCallback(
     async (caveId: string) => {
+      const target = viewRef.current?.caves?.find((entry) => entry.id === caveId) ?? null;
       const next = await sendCommand("/api/game/clear-cave", {
         actionId: newActionId(),
         payload: { caveId },
       }, { refreshChunks: "always" });
-      if (next?.tool) {
+      if (next?.tool && next.player) {
         const slot = next.tool.affinity === "ENERGY" ? "Energy" : "Metal";
-        setFeedback(
+        announce(
           next.tool.equipped
             ? `Cleared a cave. Equipped a T${next.tool.tier} ${slot} tool.`
             : `Cleared a cave. Stored a T${next.tool.tier} ${slot} tool.`,
+          target
+            ? sceneAt(viewRef.current, next.player, target.x, target.y, { cave: true })
+            : { art: "cave", heading: TILE_ART.cave.heading, detail: tileDetail(next.player.location?.x ?? 0, next.player.location?.y ?? 0) },
         );
         setView((current) => {
           if (!current) {
@@ -284,28 +367,31 @@ export function GameShell({
         });
       }
     },
-    [sendCommand],
+    [announce, sendCommand],
   );
 
   const clearNearestCave = useCallback(async () => {
     if (!location) {
-      setFeedback("No field location to clear a cave from.");
+      announce("No field location to clear a cave from.");
       return;
     }
     const cave = pickGatherCave(view?.caves ?? [], location, balanceV1.economy.caves.collectChebyshevRange);
     if (!cave) {
-      setFeedback("Move adjacent to a cave (C), then press C to clear it.");
+      announce("Move adjacent to a cave (C), then press C to clear it.");
       return;
     }
     await clearCave(cave.id);
-  }, [clearCave, location, view?.caves]);
+  }, [announce, clearCave, location, view?.caves]);
 
   const upgradeBase = useCallback(async () => {
     const next = await sendCommand("/api/game/upgrade-base", { actionId: newActionId() });
-    if (next?.upgrade) {
-      setFeedback(`Base upgraded to level ${next.upgrade.level}.`);
+    if (next?.upgrade && next.player?.location) {
+      announce(
+        `Base upgraded to level ${next.upgrade.level}.`,
+        sceneAt(viewRef.current, next.player, next.player.location.x, next.player.location.y, { base: true }),
+      );
     }
-  }, [sendCommand]);
+  }, [announce, sendCommand]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -391,7 +477,7 @@ export function GameShell({
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-8 lg:px-8">
+    <main className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-8 lg:px-8">
       <header className="flex flex-wrap items-end justify-between gap-4 border-b border-[var(--ash-border)] pb-4">
         <div>
           <p className="ash-label">Command shell</p>
@@ -400,7 +486,7 @@ export function GameShell({
         <LogoutButton />
       </header>
 
-      <section className="mt-6 grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+      <section className="mt-6 grid gap-6 lg:grid-cols-[16.5rem_minmax(0,1fr)_minmax(12.5rem,13.5rem)] lg:items-start">
         <aside className="ash-frame space-y-4 p-5" aria-label="Base status">
           <StatusRow label="Base status" value={player.base ? "ESTABLISHED" : "PENDING"} />
           <StatusRow label="World" value={(player.world ?? "UNKNOWN").toUpperCase()} />
@@ -557,13 +643,15 @@ export function GameShell({
           </div>
         </aside>
 
-        <section className="ash-frame p-4" aria-label="World grid">
-          <p className="ash-label mb-3">Local grid · WASD / arrows move · G gathers · C clears caves</p>
+        <TileStage art={stage.art} heading={stage.heading} detail={stage.detail} result={feedback} />
+
+        <section className="ash-frame p-4" aria-label="Local map">
+          <p className="ash-label mb-3">Local map</p>
           <div
             className="ash-world-grid"
             role="grid"
             data-testid="world-grid"
-            style={{ gridTemplateColumns: `repeat(${radius * 2 + 1}, minmax(1.5rem, 1fr))` }}
+            style={{ gridTemplateColumns: `repeat(${radius * 2 + 1}, minmax(0.85rem, 1fr))` }}
           >
             {tiles.map((tile) => {
               const className = [
@@ -615,8 +703,8 @@ export function GameShell({
               );
             })}
           </div>
-          <p className="mt-4 min-h-6 text-sm text-[var(--ash-beige)]" data-testid="command-feedback" aria-live="polite">
-            {feedback}
+          <p className="mt-3 text-center font-mono text-[0.65rem] uppercase tracking-[0.12em] text-[var(--ash-muted)]">
+            WASD / arrows · G gather · C cave
           </p>
         </section>
       </section>

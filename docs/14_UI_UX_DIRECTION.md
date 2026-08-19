@@ -51,21 +51,24 @@ Primary:
 
 Do not build a fake full HUD before the grid exists.
 
-## Future main game layout
+## Main game layout
 
-Desktop concept:
+Desktop:
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ PROJECT ASHFALL | ENERGY | METAL | TROOPS | COORDINATE     │
+│ PROJECT ASHFALL                                              │
 ├───────────────┬──────────────────────────┬───────────────────┤
-│ BASE / PLAYER │                          │ TILE / TARGET     │
-│ STATUS        │        GRID MAP          │ DETAILS           │
-│               │                          │                   │
-├───────────────┴──────────────────────────┴───────────────────┤
-│ EVENT LOG / COMMAND FEEDBACK                                │
-└──────────────────────────────────────────────────────────────┘
+│ BASE / PLAYER │     ACTIVE TILE ART      │   LOCAL MAP       │
+│ STATUS        │     ACTION RESULTS       │   (compact grid)  │
+│ COMMANDS      │                          │                   │
+└───────────────┴──────────────────────────┴───────────────────┘
 ```
+
+- Left: compact status and commands
+- Center: large graphic for the active tile, plus gather/move/cave results
+- Right: smaller local grid used for navigation
+- Mobile stacks status, then the tile stage, then the map
 
 ## Movement UX
 
