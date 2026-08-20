@@ -33,9 +33,11 @@ async function registerAccount(email: string, callsign?: string) {
 
 describe("admin security boundaries", () => {
   const previous = process.env.ADMIN_EMAILS;
+  const previousCron = process.env.CRON_SECRET;
 
   beforeAll(() => {
     process.env.ADMIN_EMAILS = "keeper@ashfall.test";
+    process.env.CRON_SECRET = "test-cron-secret-value";
   });
 
   afterAll(() => {
@@ -43,6 +45,11 @@ describe("admin security boundaries", () => {
       delete process.env.ADMIN_EMAILS;
     } else {
       process.env.ADMIN_EMAILS = previous;
+    }
+    if (previousCron === undefined) {
+      delete process.env.CRON_SECRET;
+    } else {
+      process.env.CRON_SECRET = previousCron;
     }
   });
   it("rejects unauthenticated and non-admin admin routes", async () => {
@@ -78,6 +85,13 @@ describe("admin security boundaries", () => {
 
     const cron = await cronBotsGet(new Request("http://localhost/api/cron/bots"));
     expect(cron.status).toBe(401);
+
+    const authorizedCron = await cronBotsGet(
+      new Request("http://localhost/api/cron/bots", {
+        headers: { authorization: "Bearer test-cron-secret-value" },
+      }),
+    );
+    expect(authorizedCron.status).toBe(200);
   });
 
   it("grants admin when the account flag is set even if the email is not listed", async () => {

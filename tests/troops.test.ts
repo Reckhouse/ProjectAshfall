@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { expeditions, players, troopStacks, caves as caveRows, battleReports } from "@/db/schema";
 import { balanceV1 } from "@/game/config/balance.v1";
@@ -8,6 +8,7 @@ import { materializeChunkNodes } from "@/game/services/nodes";
 import { ensurePlayerProvisioned } from "@/game/services/provision";
 import { recruitTroops } from "@/game/services/troops";
 import { caveRequiredPower, offensePower } from "@/game/services/troop-state";
+import { resolveCombat } from "@/game/services/combat";
 import { createSeededRng } from "@/game/world/rng";
 import { setupIsolatedGameDb } from "./helpers/db";
 
@@ -167,17 +168,40 @@ describe("troops and expeditions", () => {
     expect(cave).toBeTruthy();
     await db.update(caveRows).set({ tier: 5 }).where(eq(caveRows.featureId, cave!.id));
 
-    await departBase(db, "troop-cave-loss", crypto.randomUUID(), 1);
+    const minimumOffense = Math.ceil(caveRequiredPower(5) / balanceV1.troops.offenseAttack);
+    await departBase(db, "troop-cave-loss", crypto.randomUUID(), 2);
+    await db
+      .update(troopStacks)
+      .set({ quantity: minimumOffense })
+      .where(and(eq(troopStacks.playerId, playerRow!.id), eq(troopStacks.locationType, "EXPEDITION"), eq(troopStacks.unitType, "OFFENSE")));
     await db
       .update(players)
       .set({ x: cave!.x, y: cave!.y, locationType: "FIELD" })
       .where(eq(players.authUserId, "troop-cave-loss"));
 
-    const actionId = crypto.randomUUID();
+    let actionId = crypto.randomUUID();
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const candidate = crypto.randomUUID();
+      const combatSeed = `${world.id}:${cave!.id}:${playerRow!.id}:${candidate}:combat`;
+      const preview = resolveCombat({
+        attacker: { quantity: minimumOffense, powerPerUnit: balanceV1.troops.offenseAttack },
+        defender: {
+          quantity: balanceV1.combat.caveDefenseUnitsByTier[5],
+          powerPerUnit: balanceV1.combat.caveDefensePowerByTier[5],
+        },
+        rng: createSeededRng(combatSeed),
+        seed: combatSeed,
+      });
+      if (preview.outcome === "DEFENDER_WIN") {
+        actionId = candidate;
+        break;
+      }
+    }
+
     const lost = await clearCave(db, "troop-cave-loss", { actionId, caveId: cave!.id });
     expect(lost.tool).toBeNull();
     expect(lost.battle.outcome).toBe("DEFENDER_WIN");
-    expect(lost.battle.attackerCommitted).toBe(1);
+    expect(lost.battle.attackerCommitted).toBe(minimumOffense);
     expect(lost.player.troops.offense.deployed).toBe(lost.battle.attackerRemaining);
     expect(lost.player.resources?.energy).toBe(start.resources!.energy - balanceV1.economy.caves.energyCostByTier[5]);
 

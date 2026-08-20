@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lte, or, sql } from "drizzle-orm";
 import { bases, botProfiles, playerResources, players, raidCooldowns, worlds } from "@/db/schema";
 import type { AppDb } from "@/db/types";
 import { balanceV1 } from "@/game/config/balance.v1";
@@ -538,12 +538,18 @@ export async function tickEnabledBots(
 }
 
 export async function maybeTickBotsInBackground(db: AppDb): Promise<void> {
-  const [enabled] = await db
+  const dueBefore = new Date(Date.now() - balanceV1.bots.minTickIntervalMs);
+  const [due] = await db
     .select({ playerId: botProfiles.playerId })
     .from(botProfiles)
-    .where(eq(botProfiles.enabled, true))
+    .where(
+      and(
+        eq(botProfiles.enabled, true),
+        or(isNull(botProfiles.lastTickAt), lte(botProfiles.lastTickAt, dueBefore)),
+      ),
+    )
     .limit(1);
-  if (!enabled) {
+  if (!due) {
     return;
   }
   await tickEnabledBots(db, { limit: balanceV1.bots.maxBotsPerTick });

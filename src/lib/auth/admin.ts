@@ -28,17 +28,12 @@ export function assertAdmin(user: AuthUser | null): AuthUser {
 
 export function cronSecretAuthorized(request: Request, source: NodeJS.ProcessEnv = process.env): boolean {
   const secret = getServerEnv(source).cronSecret;
-  if (secret) {
-    const authorization = request.headers.get("authorization");
-    if (authorization === `Bearer ${secret}`) {
-      return true;
-    }
-    if (request.headers.get("x-cron-secret") === secret) {
-      return true;
-    }
+  if (!secret) {
+    return false;
   }
-  const vercelEnv = source.VERCEL_ENV;
-  return (
-    (vercelEnv === "production" || vercelEnv === "preview") && request.headers.get("x-vercel-cron") === "1"
-  );
+  const authorization = request.headers.get("authorization");
+  if (authorization === `Bearer ${secret}`) {
+    return true;
+  }
+  return request.headers.get("x-cron-secret") === secret;
 }
