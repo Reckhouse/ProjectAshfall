@@ -1,19 +1,12 @@
 # Project Ashfall Ver 2.0
 
-Persistent grid-based browser strategy game. Phase 1 is live in this repo: register, log in, receive one server-chosen base, and see starting Energy and Metal.
+Persistent grid-based browser strategy game built on a server-authoritative command model. Phases 1–10 are implemented: auth, world grid, resources, caves/tools, troops, PvE/PvP combat, storage raids, standings, alliances, and commander mail.
 
-## Locked Phase 1 slice
+## Gameplay loop
 
-A commander can:
+A commander can register, spawn into world `ashfall-01`, gather Energy and Metal, upgrade base/storage, clear tiered caves for stackable tools, recruit troops, raid other bases, join alliances, and send mail. The browser sends **intent only** (`actionId` + command parameters). The server decides outcomes — coordinates, resources, combat, and loot are never accepted from the client.
 
-1. Create an account
-2. Receive a session
-3. Be provisioned into world `ashfall-01`
-4. Receive one valid random base
-5. See Energy **250** and Metal **150**
-6. Log out, log back in, and return to the same coordinates
-
-The browser sends intent. The server decides the result. Spawn coordinates and resource totals are never accepted from the client.
+Starting stockpile: **250 Energy**, **150 Metal**, **2 offense / 2 defense** at base.
 
 ## Stack
 
@@ -49,19 +42,23 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-## Vercel + Neon
+## Vercel + Neon deployment
 
 1. Create a Neon project and a Vercel project from this repository.
 2. Add the Neon integration (or paste the **pooled** connection string).
-3. Set environment variables for Production and Preview:
+3. Set environment variables for **Production** and **Preview**:
 
 ```text
 DATABASE_URL=postgres://...@ep-xxxx-pooler.region.aws.neon.tech/neondb?sslmode=require
 AUTH_SECRET=<at least 32 random characters>
 APP_ORIGIN=https://<your-deployment-host>
+CRON_SECRET=<at least 16 random characters>
+ADMIN_EMAILS=you@example.com
 ```
 
-4. Deploy. The first server request applies the Phase 1 schema (`IF NOT EXISTS`) and seeds `ashfall-01` plus one 512×512 spawn region.
+4. Deploy. The first server request applies schema migrations (`IF NOT EXISTS`) and seeds `ashfall-01` plus the active spawn region.
+
+**CRON_SECRET** is required for `/api/cron/bots`. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when the variable is set. Bot ticks run every minute via `vercel.json`.
 
 Optional explicit migrate:
 
@@ -71,14 +68,14 @@ npm run db:migrate
 
 `WORLD_SEED` is server-only and is never returned to the browser.
 
-## Plan files
+## Project layout
 
-Planning documents now live in the layout the Cursor package described:
+- `docs/` — architecture and design
+- `balance/` — simulation baselines and tuning notes
+- `cursor_agents/` — specialist agent briefs
+- `task_packets/` — phase task lists
+- `src/game/` — authoritative game logic and balance config
+- `tests/` — Vitest service/security tests
+- `e2e/` — Playwright smoke tests (phases 1–10)
 
-- `docs/` architecture and design
-- `balance/` simulation and numeric baselines
-- `cursor_agents/` specialist agent briefs
-- `task_packets/` phase task lists
-- `CURSOR_START_HERE.md` working rules
-
-Phase 1 implementation notes: `docs/19_PHASE_1_IMPLEMENTATION_NOTES.md`.
+Implementation notes: `docs/19_PHASE_1_IMPLEMENTATION_NOTES.md`. Start here for agent workflow: `CURSOR_START_HERE.md`.

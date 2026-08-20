@@ -375,6 +375,7 @@ export async function respondToAllianceInvite(
     if (already) {
       throw new GameError("INVALID_COMMAND", "Leave your current alliance before accepting another invite.", 400);
     }
+    await tx.select().from(alliances).where(eq(alliances.id, invite.allianceId)).for("update").limit(1);
     const members = await tx
       .select({ playerId: allianceMembers.playerId })
       .from(allianceMembers)

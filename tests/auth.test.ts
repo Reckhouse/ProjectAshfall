@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { createUserAccount } from "@/lib/auth/service";
 import { registerSchema } from "@/lib/validation/auth";
-import { getServerEnv, DEFAULT_ADMIN_EMAILS } from "@/lib/env";
+import { getServerEnv } from "@/lib/env";
 import { isUniqueViolation } from "@/game/services/spawn";
 import { GameError } from "@/game/domain/errors";
 import { setupIsolatedGameDb } from "./helpers/db";
@@ -43,16 +43,16 @@ describe("auth helpers", () => {
     expect(env.authSecret.length).toBeGreaterThan(0);
   });
 
-  it("keeps operator emails on the admin list outside test even when ADMIN_EMAILS is set", () => {
+  it("parses ADMIN_EMAILS into the admin list", () => {
     const env = getServerEnv({
       NODE_ENV: "development",
-      ADMIN_EMAILS: "extra@ashfall.test",
+      ADMIN_EMAILS: "extra@ashfall.test, keeper@ashfall.test",
     });
-    expect(env.adminEmails).toEqual(expect.arrayContaining([...DEFAULT_ADMIN_EMAILS, "extra@ashfall.test"]));
+    expect(env.adminEmails).toEqual(["extra@ashfall.test", "keeper@ashfall.test"]);
   });
 
-  it("does not grant default operator emails during tests unless listed", () => {
-    const env = getServerEnv({ NODE_ENV: "test" });
+  it("returns an empty admin list when ADMIN_EMAILS is unset", () => {
+    const env = getServerEnv({ NODE_ENV: "development" });
     expect(env.adminEmails).toEqual([]);
   });
 

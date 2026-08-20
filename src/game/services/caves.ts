@@ -9,7 +9,12 @@ import { loadSnapshot } from "@/game/services/provision";
 import { caveCandidateAt, caveCandidatesInChunk, caveEnergyCost, pickToolAffinity } from "@/game/world/caves";
 import { chebyshevDistance, collectionBonusBps } from "@/game/world/nodes";
 import { stackToolBonusBps } from "@/game/world/tools";
-import { applyExpeditionCasualties, caveRequiredPower, getExpeditionOffense } from "@/game/services/troop-state";
+import {
+  applyExpeditionCasualties,
+  caveRequiredPower,
+  getExpeditionOffense,
+  offensePower,
+} from "@/game/services/troop-state";
 import { applyCaveBattleAdjustments, resolveCombat, type BattleReport } from "@/game/services/combat";
 import { createSeededRng } from "@/game/world/rng";
 import { createId } from "@/lib/ids";
@@ -174,10 +179,12 @@ export async function clearCave(
       }
 
       const committed = await getExpeditionOffense(tx, player.id);
-      if (committed <= 0) {
+      const requiredPower = caveRequiredPower(cave.tier);
+      const attackPower = offensePower(committed);
+      if (committed <= 0 || attackPower < requiredPower) {
         throw new GameError(
           "INSUFFICIENT_TROOPS",
-          `Commit at least ${Math.ceil(caveRequiredPower(cave.tier) / balanceV1.troops.offenseAttack)} offense troops to clear this cave.`,
+          `Commit at least ${Math.ceil(requiredPower / balanceV1.troops.offenseAttack)} offense troops to clear this cave.`,
           400,
         );
       }
