@@ -52,13 +52,28 @@ npm run test:e2e
 DATABASE_URL=postgres://...@ep-xxxx-pooler.region.aws.neon.tech/neondb?sslmode=require
 AUTH_SECRET=<at least 32 random characters>
 APP_ORIGIN=https://<your-deployment-host>
-CRON_SECRET=<at least 16 random characters>
 ADMIN_EMAILS=you@example.com
+```
+
+Optional — only if you use an **external** cron service (see Bot activity below):
+
+```text
+CRON_SECRET=<at least 16 random characters>
 ```
 
 4. Deploy. The first server request applies schema migrations (`IF NOT EXISTS`) and seeds `ashfall-01` plus the active spawn region.
 
-**CRON_SECRET** is required for `/api/cron/bots`. Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` when the variable is set. Bot ticks run every minute via `vercel.json`.
+### Bot activity (Hobby tier)
+
+Vercel **Hobby** plans cannot use Vercel Cron. This project does **not** ship a `vercel.json` cron schedule so Hobby deploys succeed.
+
+Bots still run via **activity wake**:
+
+- Loading `/game` ticks due bots in the background (respecting a 20s minimum interval per bot)
+- Visiting `/admin` or calling admin stats does the same
+- Admins can manually tick from the Admin panel
+
+For hands-off scheduling on any plan, ping `GET /api/cron/bots` from an external scheduler (e.g. [cron-job.org](https://cron-job.org)) with header `Authorization: Bearer <CRON_SECRET>`. Vercel **Pro** teams may alternatively add a `crons` block back to `vercel.json` if desired.
 
 Optional explicit migrate:
 
